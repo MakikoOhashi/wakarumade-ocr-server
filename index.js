@@ -21,7 +21,20 @@ app.post("/ocr", async (req, res) => {
     const { imageBase64 } = req.body;
     if (!imageBase64) return res.status(400).json({ error: "no image" });
 
-    const base64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    let base64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    
+    // Base64 検証
+    base64 = base64.trim(); // 空白を除去
+    if (!/^[A-Za-z0-9+/=]*$/.test(base64)) {
+      return res.status(400).json({ error: "Invalid base64 format" });
+    }
+
+    // Base64 長さチェック（サーバーが大きすぎる画像を受け取ってないか確認）
+    if (base64.length > 20 * 1024 * 1024) { // 20MB以上
+      return res.status(413).json({ error: "Image too large" });
+    }
+
+    console.log(`[OCR] Processing image, base64 length: ${base64.length}`);
 
     const result = await model.generateContent([
       {
