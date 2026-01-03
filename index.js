@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import fetch from "node-fetch";
+import { ImageAnnotatorClient } from "@google-cloud/vision";
 
 dotenv.config();
 
@@ -9,8 +10,16 @@ if (!process.env.GEMINI_API_KEY) {
   throw new Error("GEMINI_API_KEY is not set");
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  console.warn("GOOGLE_APPLICATION_CREDENTIALS not set, Vision API may not work");
+}
+
+// Use direct API calls to v1 endpoint since SDK v0.24.1 is hardcoded to v1beta
+const API_KEY = process.env.GEMINI_API_KEY;
+const API_URL = "https://generativelanguage.googleapis.com/v1";
+
+// Initialize Google Cloud Vision client
+const visionClient = new ImageAnnotatorClient();
 
 const app = express();
 app.use(cors());
@@ -22,7 +31,7 @@ app.post("/ocr", async (req, res) => {
     if (!imageBase64) return res.status(400).json({ error: "no image" });
 
     let base64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-    
+
     // Base64 検証
     base64 = base64.trim(); // 空白を除去
     if (!/^[A-Za-z0-9+/=]*$/.test(base64)) {
@@ -36,24 +45,104 @@ app.post("/ocr", async (req, res) => {
 
     console.log(`[OCR] Processing image, base64 length: ${base64.length}`);
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: "image/jpeg",
-          data: base64,
+    // Step 1: Extract raw text using Google Cloud Vision API (OCR specialized)
+    console.log("[OCR] Step 1/2: Extracting text with Google Cloud Vision API");
+    const imageBuffer = Buffer.from(base64, "base64");
+
+    try {
+      const [visionResult] = await visionClient.textDetection({
+        image: { content: imageBuffer },
+      });
+
+      const rawText = visionResult.fullTextAnnotation?.text || "";
+      console.log("[OCR] Extracted raw text length:", rawText.length);
+
+      if (!rawText.trim()) {
+        throw new Error("No text detected in the image");
+      }
+
+      // Step 2: Format the extracted text using Gemini AI
+      console.log("[OCR] Step 2/2: Formatting text with Gemini AI");
+      const formatResponse = await fetch(`${API_URL}/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      },
-      "この画像に写っている算数の問題をJSONで抽出してください。{problems:[{number,question}]}"
-    ]);
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `以下の算数の問題テキストをJSON形式に整理してください:\n\n${rawText}\n\n形式: {problems:[{number,question}]}`,
+                },
+              ],
+            },
+          ],
+        }),
+      });
 
-    const text = result.response.text();
+      if (!formatResponse.ok) {
+        const errorData = await formatResponse.json();
+        console.error("Gemini Format Error:", errorData);
 
-    // Geminiは平気で ```json ... ``` を付ける
-    const cleaned = text.replace(/```json|```/g, "").trim();
+        // Handle quota exceeded error specifically
+        if (errorData.error?.message?.includes("quota exceeded")) {
+          throw new Error("Gemini API quota exceeded. Please check your billing or try again later.");
+        }
 
-    const data = JSON.parse(cleaned);
+        throw new Error(`Gemini Format Error: ${formatResponse.status} ${JSON.stringify(errorData)}`);
+      }
 
-    res.json(data);
+      const formatResult = await formatResponse.json();
+      const formattedText = formatResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const cleaned = formattedText.replace(/```json|```/g, "").trim();
+
+      const data = JSON.parse(cleaned);
+      res.json(data);
+
+    } catch (visionError) {
+      console.error("Vision API Error:", visionError.message);
+
+      // Fallback to Gemini-only approach if Vision API fails
+      console.log("[OCR] Fallback: Using Gemini for both OCR and formatting");
+
+      const fallbackResponse = await fetch(`${API_URL}/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  inline_data: {
+                    mime_type: "image/jpeg",
+                    data: base64,
+                  },
+                },
+                {
+                  text: "この画像に写っている算数の問題をJSONで抽出してください。{problems:[{number,question}]}",
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (!fallbackResponse.ok) {
+        const errorData = await fallbackResponse.json();
+        console.error("Fallback API Error:", errorData);
+        throw new Error(`Fallback Error: ${fallbackResponse.status} ${JSON.stringify(errorData)}`);
+      }
+
+      const fallbackResult = await fallbackResponse.json();
+      const fallbackText = fallbackResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const cleaned = fallbackText.replace(/```json|```/g, "").trim();
+
+      const data = JSON.parse(cleaned);
+      res.json(data);
+    }
 
   } catch (err) {
     console.error(err);
