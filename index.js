@@ -102,46 +102,7 @@ app.post("/ocr", async (req, res) => {
 
     } catch (visionError) {
       console.error("Vision API Error:", visionError.message);
-
-      // Fallback to Gemini-only approach if Vision API fails
-      console.log("[OCR] Fallback: Using Gemini for both OCR and formatting");
-
-      const fallbackResponse = await fetch(`${API_URL}/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  inline_data: {
-                    mime_type: "image/jpeg",
-                    data: base64,
-                  },
-                },
-                {
-                  text: "この画像に写っている算数の問題をJSONで抽出してください。{problems:[{number,question}]}",
-                },
-              ],
-            },
-          ],
-        }),
-      });
-
-      if (!fallbackResponse.ok) {
-        const errorData = await fallbackResponse.json();
-        console.error("Fallback API Error:", errorData);
-        throw new Error(`Fallback Error: ${fallbackResponse.status} ${JSON.stringify(errorData)}`);
-      }
-
-      const fallbackResult = await fallbackResponse.json();
-      const fallbackText = fallbackResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      const cleaned = fallbackText.replace(/```json|```/g, "").trim();
-
-      const data = JSON.parse(cleaned);
-      res.json(data);
+      throw new Error(`Vision API Error: ${visionError.message}`);
     }
 
   } catch (err) {

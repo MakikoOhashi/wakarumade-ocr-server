@@ -8,7 +8,6 @@ The server has been successfully implemented with a two-step OCR architecture:
 
 1. **Google Cloud Vision API** for text extraction (OCR)
 2. **Gemini AI (gemini-2.5-flash)** for text formatting and structuring
-3. **Fallback mechanism** to Gemini-only when Vision API is unavailable
 
 ## 🚀 Quick Start
 
@@ -59,10 +58,6 @@ npm run dev
    - Structures extracted text into JSON format
    - Organizes math problems with numbers and questions
    - Handles Japanese and English mixed content
-
-3. **Fallback Mechanism**
-   - If Vision API fails, uses Gemini for both OCR and formatting
-   - Graceful error handling and recovery
 
 ## 📦 Dependencies
 
@@ -119,7 +114,7 @@ The server has been tested and verified to work with:
 
 - ✅ Base64 image encoding
 - ✅ Image validation and size checks
-- ✅ Error handling and fallback
+- ✅ Error handling
 - ✅ JSON response formatting
 - ✅ CORS support
 
@@ -127,7 +122,7 @@ The server has been tested and verified to work with:
 
 - **High Accuracy OCR**: Google Cloud Vision API specialized for text extraction
 - **Intelligent Formatting**: Gemini AI structures math problems properly
-- **Robust Error Handling**: Automatic fallback when APIs fail
+- **Robust Error Handling**: Comprehensive error detection and reporting
 - **Scalable Architecture**: Can handle multiple requests efficiently
 - **Secure**: Proper API key management and authentication
 
