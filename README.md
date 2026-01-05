@@ -2,11 +2,11 @@
 
 ## 📋 Current Status
 
-**✅ OCR Server is Working!**
+**🚧 Transition to Apple Vision OCR**
 
-The server has been successfully implemented with a two-step OCR architecture:
+The server is being transitioned from Google Cloud Vision API to Apple Vision OCR:
 
-1. **Google Cloud Vision API** for text extraction (OCR)
+1. **Apple Vision Framework** for text extraction (OCR) - Local, privacy-focused
 2. **Gemini AI (gemini-2.5-flash-lite)** for text formatting and structuring
 
 ## 🚀 Quick Start
@@ -49,10 +49,11 @@ npm run dev
 
 ### Two-Step OCR Process
 
-1. **Step 1: Text Extraction (Google Cloud Vision API)**
-   - Specialized OCR engine optimized for text detection
-   - Handles various image formats (JPEG, PNG, etc.)
-   - Extracts raw text from math problem images
+1. **Step 1: Text Extraction (Apple Vision Framework)**
+   - Local OCR processing using macOS Vision framework
+   - No cloud dependency, runs entirely on your Mac
+   - Supports multiple languages including Japanese
+   - Privacy-focused: no image data leaves your device
 
 2. **Step 2: Text Formatting (Gemini AI)**
    - Structures extracted text into JSON format
@@ -61,7 +62,6 @@ npm run dev
 
 ## 📦 Dependencies
 
-- `@google-cloud/vision` - Google Cloud Vision API client
 - `@google/generative-ai` - Gemini AI SDK
 - `express` - Web server framework
 - `cors` - CORS middleware
@@ -74,27 +74,27 @@ npm run dev
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key
-GOOGLE_APPLICATION_CREDENTIALS=./google-cloud-key.json
 ```
 
 ### Required Files
 
-- `google-cloud-key.json` - Google Cloud service account credentials
+None - Apple Vision framework is built into macOS
 
 ## 🛠️ Setup Instructions
 
 1. **Install Node.js** (v18+ recommended)
 2. **Clone this repository**
 3. **Install dependencies**: `npm install`
-4. **Set up Google Cloud**:
-   - Create a project in Google Cloud Console
-   - Enable **Cloud Vision API**
-   - Create a service account and download JSON key
-   - Save as `google-cloud-key.json`
-5. **Get Gemini API Key**:
+4. **Get Gemini API Key**:
    - Visit [Google AI Studio](https://ai.google.dev/)
    - Create API key and add to `.env`
-6. **Start server**: `npm run dev`
+5. **Start server**: `npm run dev`
+
+### Apple Vision Requirements
+
+- **macOS 12.0+ (Monterey)** or later
+- **Xcode 13.0+** with command line tools
+- Apple Vision framework is included with macOS (no additional installation needed)
 
 ## 📊 API Usage & Quotas
 
@@ -120,27 +120,49 @@ The server has been tested and verified to work with:
 
 ## 🎯 Features
 
-- **High Accuracy OCR**: Google Cloud Vision API specialized for text extraction
+- **Privacy-Focused OCR**: Apple Vision framework runs locally on your Mac
+- **No Cloud Costs**: No API calls for text extraction
+- **High Performance**: Optimized for macOS hardware
 - **Intelligent Formatting**: Gemini AI structures math problems properly
 - **Robust Error Handling**: Comprehensive error detection and reporting
-- **Scalable Architecture**: Can handle multiple requests efficiently
-- **Secure**: Proper API key management and authentication
+- **Multi-language Support**: Japanese, English, and more
+- **Offline Capable**: OCR works without internet connection
 
 ## 📝 Notes
 
-- **Google Cloud Vision API must be enabled** in your project
-- **Service account must have Vision API permissions**
-- **Gemini API key must have proper quotas**
+- **Apple Vision framework is built into macOS 12.0+**
+- **Gemini API key is only used for text formatting**
+- **No Google Cloud setup required**
 - **Test with real math problem images** for best results
-- **Monitor API usage** to avoid quota limits
+- **Monitor Gemini API usage** to avoid quota limits
+- **Apple Vision supports multiple languages automatically**
 
 ## 🔮 Future Improvements
 
+- Complete Apple Vision OCR integration
 - Add rate limiting
 - Implement request caching
 - Add logging and monitoring
 - Support for additional image formats
 - Batch processing capability
+
+## 🍎 Apple Vision OCR Implementation
+
+The Apple Vision OCR implementation is located in the `apple-vision/` directory:
+
+- `appleVisionOCR.js` - Main OCR implementation
+- `config.js` - Configuration and settings
+- `testAppleVision.js` - Test suite and benchmarks
+- `README.md` - Detailed setup and usage instructions
+
+### Implementation Status
+
+- ✅ File structure created
+- ✅ Sample code provided
+- ✅ Configuration system implemented
+- ✅ Test framework established
+- ⏳ Native bridge integration (in progress)
+- ⏳ Performance optimization
 
 ---
 

@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
-import { ImageAnnotatorClient } from "@google-cloud/vision";
 
 dotenv.config();
 
@@ -10,18 +9,9 @@ if (!process.env.GEMINI_API_KEY) {
   throw new Error("GEMINI_API_KEY is not set");
 }
 
-if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.warn("GOOGLE_APPLICATION_CREDENTIALS not set, Vision API may not work");
-  console.warn("Please set GOOGLE_APPLICATION_CREDENTIALS to point to your service account key file");
-  console.warn("And ensure the Cloud Vision API is enabled: https://console.cloud.google.com/apis/library/vision.googleapis.com");
-}
-
 // Use direct API calls to v1 endpoint since SDK v0.24.1 is hardcoded to v1beta
 const API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1";
-
-// Initialize Google Cloud Vision client
-const visionClient = new ImageAnnotatorClient();
 
 const app = express();
 app.use(cors());
@@ -47,79 +37,52 @@ app.post("/ocr", async (req, res) => {
 
     console.log(`[OCR] Processing image, base64 length: ${base64.length}`);
 
-    // Step 1: Extract raw text using Google Cloud Vision API (OCR specialized)
-    console.log("[OCR] Step 1/2: Extracting text with Google Cloud Vision API");
-    const imageBuffer = Buffer.from(base64, "base64");
+    // TODO: Implement Apple Vision OCR here
+    console.log("[OCR] Step 1/2: Extracting text with Apple Vision OCR");
+    const rawText = ""; // Placeholder for Apple Vision OCR result
 
-    try {
-      const [visionResult] = await visionClient.textDetection({
-        image: { content: imageBuffer },
-      });
-
-      const rawText = visionResult.fullTextAnnotation?.text || "";
-      console.log("[OCR] Extracted raw text length:", rawText.length);
-
-      if (!rawText.trim()) {
-        throw new Error("No text detected in the image");
-      }
-
-      // Step 2: Format the extracted text using Gemini AI
-      console.log("[OCR] Step 2/2: Formatting text with Gemini AI");
-      const formatResponse = await fetch(`${API_URL}/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `以下の算数の問題テキストをJSON形式に整理してください:\n\n${rawText}\n\n形式: {problems:[{number,question}]}`,
-                },
-              ],
-            },
-          ],
-        }),
-      });
-
-      if (!formatResponse.ok) {
-        const errorData = await formatResponse.json();
-        console.error("Gemini Format Error:", errorData);
-
-        // Handle quota exceeded error specifically
-        if (errorData.error?.message?.includes("quota exceeded")) {
-          throw new Error("Gemini API quota exceeded. Please check your billing or try again later.");
-        }
-
-        throw new Error(`Gemini Format Error: ${formatResponse.status} ${JSON.stringify(errorData)}`);
-      }
-
-      const formatResult = await formatResponse.json();
-      const formattedText = formatResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      const cleaned = formattedText.replace(/```json|```/g, "").trim();
-
-      const data = JSON.parse(cleaned);
-      res.json(data);
-
-    } catch (visionError) {
-      console.error("Vision API Error:", visionError.message);
-
-      // Provide specific guidance for common Vision API errors
-      if (visionError.message.includes("PERMISSION_DENIED")) {
-        const errorMsg = `Vision API Error: ${visionError.message}. Please ensure:
-1. The Cloud Vision API is enabled for your project: https://console.cloud.google.com/apis/library/vision.googleapis.com
-2. Your service account has the correct permissions
-3. GOOGLE_APPLICATION_CREDENTIALS environment variable points to your service account key file
-4. The service account key is valid and not expired`;
-        throw new Error(errorMsg);
-      } else if (visionError.message.includes("API has not been used")) {
-        const errorMsg = `Vision API not enabled: ${visionError.message}. Please visit https://console.cloud.google.com/apis/library/vision.googleapis.com to enable the Cloud Vision API for your project.`;
-        throw new Error(errorMsg);
-      } else {
-        throw new Error(`Vision API Error: ${visionError.message}`);
-      }
+    if (!rawText.trim()) {
+      throw new Error("No text detected in the image");
     }
+
+    // Step 2: Format the extracted text using Gemini AI
+    console.log("[OCR] Step 2/2: Formatting text with Gemini AI");
+    const formatResponse = await fetch(`${API_URL}/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: `以下の算数の問題テキストをJSON形式に整理してください:\n\n${rawText}\n\n形式: {problems:[{number,question}]}`,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!formatResponse.ok) {
+      const errorData = await formatResponse.json();
+      console.error("Gemini Format Error:", errorData);
+
+      // Handle quota exceeded error specifically
+      if (errorData.error?.message?.includes("quota exceeded")) {
+        throw new Error("Gemini API quota exceeded. Please check your billing or try again later.");
+      }
+
+      throw new Error(`Gemini Format Error: ${formatResponse.status} ${JSON.stringify(errorData)}`);
+    }
+
+    const formatResult = await formatResponse.json();
+    const formattedText = formatResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const cleaned = formattedText.replace(/```json|```/g, "").trim();
+
+    const data = JSON.parse(cleaned);
+    res.json(data);
 
   } catch (err) {
     console.error(err);
