@@ -63,7 +63,7 @@ app.post("/ocr", async (req, res) => {
 
       // Step 2: Format the extracted text using Gemini AI
       console.log("[OCR] Step 2/2: Formatting text with Gemini AI");
-      const formatResponse = await fetch(`${API_URL}/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
+      const formatResponse = await fetch(`${API_URL}/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

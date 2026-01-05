@@ -7,7 +7,7 @@
 The server has been successfully implemented with a two-step OCR architecture:
 
 1. **Google Cloud Vision API** for text extraction (OCR)
-2. **Gemini AI (gemini-2.5-flash)** for text formatting and structuring
+2. **Gemini AI (gemini-2.5-flash-lite)** for text formatting and structuring
 
 ## 🚀 Quick Start
 
@@ -103,7 +103,7 @@ GOOGLE_APPLICATION_CREDENTIALS=./google-cloud-key.json
 - **Pricing**: $1.50 per 1,000 requests after free tier
 - **Documentation**: https://cloud.google.com/vision/docs
 
-### Gemini API (gemini-2.5-flash)
+### Gemini API (gemini-2.5-flash-lite)
 - **Free Tier**: Limited requests (check your quota)
 - **Pricing**: Pay-as-you-go after free tier
 - **Documentation**: https://ai.google.dev/gemini-api
