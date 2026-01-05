@@ -12,6 +12,8 @@ if (!process.env.GEMINI_API_KEY) {
 
 if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   console.warn("GOOGLE_APPLICATION_CREDENTIALS not set, Vision API may not work");
+  console.warn("Please set GOOGLE_APPLICATION_CREDENTIALS to point to your service account key file");
+  console.warn("And ensure the Cloud Vision API is enabled: https://console.cloud.google.com/apis/library/vision.googleapis.com");
 }
 
 // Use direct API calls to v1 endpoint since SDK v0.24.1 is hardcoded to v1beta
@@ -102,7 +104,21 @@ app.post("/ocr", async (req, res) => {
 
     } catch (visionError) {
       console.error("Vision API Error:", visionError.message);
-      throw new Error(`Vision API Error: ${visionError.message}`);
+
+      // Provide specific guidance for common Vision API errors
+      if (visionError.message.includes("PERMISSION_DENIED")) {
+        const errorMsg = `Vision API Error: ${visionError.message}. Please ensure:
+1. The Cloud Vision API is enabled for your project: https://console.cloud.google.com/apis/library/vision.googleapis.com
+2. Your service account has the correct permissions
+3. GOOGLE_APPLICATION_CREDENTIALS environment variable points to your service account key file
+4. The service account key is valid and not expired`;
+        throw new Error(errorMsg);
+      } else if (visionError.message.includes("API has not been used")) {
+        const errorMsg = `Vision API not enabled: ${visionError.message}. Please visit https://console.cloud.google.com/apis/library/vision.googleapis.com to enable the Cloud Vision API for your project.`;
+        throw new Error(errorMsg);
+      } else {
+        throw new Error(`Vision API Error: ${visionError.message}`);
+      }
     }
 
   } catch (err) {
