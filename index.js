@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
+import { extractTextWithTesseract } from './tesseract-ocr.js';
 
 dotenv.config();
 
@@ -37,9 +38,16 @@ app.post("/ocr", async (req, res) => {
 
     console.log(`[OCR] Processing image, base64 length: ${base64.length}`);
 
-    // TODO: Implement Apple Vision OCR here
-    console.log("[OCR] Step 1/2: Extracting text with Apple Vision OCR");
-    const rawText = ""; // Placeholder for Apple Vision OCR result
+    // Step 1/2: Extracting text with Tesseract OCR
+    console.log("[OCR] Step 1/2: Extracting text with Tesseract OCR");
+    let rawText;
+    try {
+      rawText = await extractTextWithTesseract(base64);
+      console.log(`[OCR] Extracted text length: ${rawText.length} characters`);
+    } catch (ocrError) {
+      console.error("[OCR] Tesseract OCR failed:", ocrError.message);
+      throw new Error("OCR processing failed: " + ocrError.message);
+    }
 
     if (!rawText.trim()) {
       throw new Error("No text detected in the image");
