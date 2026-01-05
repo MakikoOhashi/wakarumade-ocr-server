@@ -2,11 +2,11 @@
 
 ## 📋 Current Status
 
-**🚧 Transition to Apple Vision OCR**
+**✅ Tesseract.js OCR Implementation**
 
-The server is being transitioned from Google Cloud Vision API to Apple Vision OCR:
+The server now uses Tesseract.js for text extraction (OCR) with Gemini AI for text formatting:
 
-1. **Apple Vision Framework** for text extraction (OCR) - Local, privacy-focused
+1. **Tesseract.js** for text extraction (OCR) - Open-source, cross-platform
 2. **Gemini AI (gemini-2.5-flash-lite)** for text formatting and structuring
 
 ## 🚀 Quick Start
@@ -49,11 +49,11 @@ npm run dev
 
 ### Two-Step OCR Process
 
-1. **Step 1: Text Extraction (Apple Vision Framework)**
-   - Local OCR processing using macOS Vision framework
-   - No cloud dependency, runs entirely on your Mac
-   - Supports multiple languages including Japanese
-   - Privacy-focused: no image data leaves your device
+1. **Step 1: Text Extraction (Tesseract.js)**
+   - Open-source OCR engine using Tesseract.js
+   - Cross-platform support (macOS, Windows, Linux)
+   - Supports multiple languages (English, Japanese, etc.)
+   - Runs locally with Node.js integration
 
 2. **Step 2: Text Formatting (Gemini AI)**
    - Structures extracted text into JSON format
@@ -67,6 +67,7 @@ npm run dev
 - `cors` - CORS middleware
 - `dotenv` - Environment variables
 - `node-fetch` - HTTP client for Gemini API
+- `node-tesseract-ocr` - Tesseract.js OCR wrapper
 
 ## 🔐 Configuration
 
@@ -78,7 +79,8 @@ GEMINI_API_KEY=your_gemini_api_key
 
 ### Required Files
 
-None - Apple Vision framework is built into macOS
+- Tesseract language data files (installed via Homebrew)
+- Node.js modules (installed via npm)
 
 ## 🛠️ Setup Instructions
 
@@ -90,18 +92,18 @@ None - Apple Vision framework is built into macOS
    - Create API key and add to `.env`
 5. **Start server**: `npm run dev`
 
-### Apple Vision Requirements
+### Tesseract Requirements
 
-- **macOS 12.0+ (Monterey)** or later
-- **Xcode 13.0+** with command line tools
-- Apple Vision framework is included with macOS (no additional installation needed)
+- **Tesseract OCR** installed via Homebrew
+- **Node.js 18+** recommended
+- **npm** for package management
 
 ## 📊 API Usage & Quotas
 
-### Google Cloud Vision API
-- **Free Tier**: 1,000 requests/month
-- **Pricing**: $1.50 per 1,000 requests after free tier
-- **Documentation**: https://cloud.google.com/vision/docs
+### Tesseract.js OCR
+- **Open-source**: Free and unlimited usage
+- **Local processing**: No API calls or quotas
+- **Documentation**: https://github.com/tesseract-ocr/tesseract
 
 ### Gemini API (gemini-2.5-flash-lite)
 - **Free Tier**: Limited requests (check your quota)
@@ -120,49 +122,48 @@ The server has been tested and verified to work with:
 
 ## 🎯 Features
 
-- **Privacy-Focused OCR**: Apple Vision framework runs locally on your Mac
+- **Open-Source OCR**: Tesseract.js runs locally with Node.js
 - **No Cloud Costs**: No API calls for text extraction
-- **High Performance**: Optimized for macOS hardware
+- **Cross-Platform**: Works on macOS, Windows, and Linux
 - **Intelligent Formatting**: Gemini AI structures math problems properly
 - **Robust Error Handling**: Comprehensive error detection and reporting
-- **Multi-language Support**: Japanese, English, and more
+- **Multi-language Support**: English, Japanese, and more (with language packs)
 - **Offline Capable**: OCR works without internet connection
 
 ## 📝 Notes
 
-- **Apple Vision framework is built into macOS 12.0+**
+- **Tesseract.js requires language data files** for each language
 - **Gemini API key is only used for text formatting**
 - **No Google Cloud setup required**
 - **Test with real math problem images** for best results
 - **Monitor Gemini API usage** to avoid quota limits
-- **Apple Vision supports multiple languages automatically**
+- **Install additional language packs** as needed
 
 ## 🔮 Future Improvements
 
-- Complete Apple Vision OCR integration
+- Add Japanese language support for Tesseract
 - Add rate limiting
 - Implement request caching
 - Add logging and monitoring
 - Support for additional image formats
 - Batch processing capability
 
-## 🍎 Apple Vision OCR Implementation
+## 🖼️ Tesseract.js OCR Implementation
 
-The Apple Vision OCR implementation is located in the `apple-vision/` directory:
+The Tesseract.js OCR implementation is located in the `tesseract-ocr.js` file:
 
-- `appleVisionOCR.js` - Main OCR implementation
-- `config.js` - Configuration and settings
-- `testAppleVision.js` - Test suite and benchmarks
-- `README.md` - Detailed setup and usage instructions
+- `extractTextWithTesseract()` - Main OCR function
+- `extractTextWithLayout()` - Enhanced OCR with layout analysis
+- `batchExtractText()` - Batch processing for multiple images
 
 ### Implementation Status
 
-- ✅ File structure created
-- ✅ Sample code provided
-- ✅ Configuration system implemented
-- ✅ Test framework established
-- ⏳ Native bridge integration (in progress)
-- ⏳ Performance optimization
+- ✅ Tesseract.js integration complete
+- ✅ Apple Vision OCR removed
+- ✅ Server updated to use Tesseract
+- ✅ Error handling implemented
+- ✅ Testing framework established
+- ✅ Documentation updated
 
 ---
 
