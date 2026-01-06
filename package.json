@@ -5,7 +5,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "node index.js"
+    "dev": "node index.js",
+    "build": "echo 'Installing system dependencies...' && apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-jpn libtesseract-dev && echo 'System dependencies installed successfully'",
+    "start": "node index.js"
   },
   "keywords": [],
   "author": "",
