@@ -168,3 +168,24 @@ The Tesseract.js OCR implementation is located in the `tesseract-ocr.js` file:
 ---
 
 **© 2026 Wakarumade OCR Server** - Math Problem OCR Solution
+
+## Node version setup (Required)
+
+This project is tied to a specific Node.js version.
+
+Before installing dependencies, always run:
+
+```bash
+nvm use
+npm install
+If nvm use fails, install the required version first:
+
+bash
+コードをコピーする
+nvm install
+nvm use
+Do NOT run npm install without activating the correct Node version,
+otherwise package-lock.json will be corrupted.
+
+yaml
+コードをコピーする
