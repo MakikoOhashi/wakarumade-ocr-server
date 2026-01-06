@@ -119,7 +119,8 @@ The project includes multiple deployment options for Render.com:
    - Set `GEMINI_API_KEY` in your Render service environment variables
 
 3. **Automatic Setup**:
-   - Tesseract OCR is installed via npm build script
+   - Tesseract OCR is installed via `preDeployCommand` in render.yaml
+   - System dependencies are installed before the application starts
    - No manual configuration required
 
 #### Option 2: Docker (Alternative)
