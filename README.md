@@ -84,17 +84,46 @@ GEMINI_API_KEY=your_gemini_api_key
 
 ## 🛠️ Setup Instructions
 
+### Local Development
+
 1. **Install Node.js** (v18+ recommended)
 2. **Clone this repository**
 3. **Install dependencies**: `npm install`
 4. **Get Gemini API Key**:
    - Visit [Google AI Studio](https://ai.google.dev/)
    - Create API key and add to `.env`
-5. **Start server**: `npm run dev`
+5. **Install Tesseract OCR**:
+   ```bash
+   # macOS
+   brew install tesseract
+
+   # Ubuntu/Debian
+   sudo apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-jpn
+
+   # Windows
+   # Download from: https://github.com/UB-Mannheim/tesseract/wiki
+   ```
+6. **Start server**: `npm run dev`
+
+### Production Deployment (Render.com)
+
+The project includes `render.yaml` for automatic deployment on Render.com:
+
+1. **Connect to Render.com**:
+   - Go to [Render.com](https://render.com)
+   - Connect your GitHub repository
+   - Select "Web Service" from the service type
+
+2. **Environment Variables**:
+   - Set `GEMINI_API_KEY` in your Render service environment variables
+
+3. **Automatic Setup**:
+   - Tesseract OCR and language packs are automatically installed via `render.yaml`
+   - No manual system dependency installation required
 
 ### Tesseract Requirements
 
-- **Tesseract OCR** installed via Homebrew
+- **Tesseract OCR** installed via Homebrew (local) or apt (production)
 - **Node.js 18+** recommended
 - **npm** for package management
 
