@@ -107,8 +107,9 @@ GEMINI_API_KEY=your_gemini_api_key
 
 ### Production Deployment (Render.com)
 
-The project includes `render.yaml` for automatic deployment on Render.com:
+The project includes multiple deployment options for Render.com:
 
+#### Option 1: render.yaml (Recommended)
 1. **Connect to Render.com**:
    - Go to [Render.com](https://render.com)
    - Connect your GitHub repository
@@ -118,8 +119,15 @@ The project includes `render.yaml` for automatic deployment on Render.com:
    - Set `GEMINI_API_KEY` in your Render service environment variables
 
 3. **Automatic Setup**:
-   - Tesseract OCR and language packs are automatically installed via `render.yaml`
-   - No manual system dependency installation required
+   - Tesseract OCR is installed via npm build script
+   - No manual configuration required
+
+#### Option 2: Docker (Alternative)
+If render.yaml doesn't work, you can use the included Dockerfile:
+
+1. **Select Docker** when creating the service on Render.com
+2. **Set environment variable**: `GEMINI_API_KEY`
+3. **Dockerfile** will handle all system dependencies automatically
 
 ### Tesseract Requirements
 
