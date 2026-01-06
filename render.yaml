@@ -2,5 +2,14 @@ services:
   - type: web
     name: wakarumade-ocr-server
     env: node
-    buildCommand: npm run build && npm install
+    buildCommand: npm install
     startCommand: npm start
+    preDeployCommand: |
+      echo "Installing Tesseract OCR..."
+      apt-get update && apt-get install -y \
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        tesseract-ocr-jpn \
+        libtesseract-dev \
+        && rm -rf /var/lib/apt/lists/* \
+        && echo "Tesseract OCR installed successfully"
