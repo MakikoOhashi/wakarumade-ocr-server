@@ -1,15 +1,12 @@
 services:
   - type: web
     name: wakarumade-ocr-server
-    env: node
-    buildCommand: npm install
-    startCommand: npm start
-    preDeployCommand: |
-      echo "Installing Tesseract OCR..."
-      apt-get update && apt-get install -y \
-        tesseract-ocr \
-        tesseract-ocr-eng \
-        tesseract-ocr-jpn \
-        libtesseract-dev \
-        && rm -rf /var/lib/apt/lists/* \
-        && echo "Tesseract OCR installed successfully"
+    # Dockerfileを使用してTesseractをインストール
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3333
