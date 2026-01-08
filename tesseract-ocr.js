@@ -13,9 +13,9 @@ export async function extractTextWithTesseract(base64Image) {
     const tempImagePath = './temp-ocr-image.png';
     fs.writeFileSync(tempImagePath, imageBuffer);
 
-    // Configure Tesseract - using only English since Japanese language pack is not available
+    // Configure Tesseract - using Japanese + English for better OCR on math problems
     const config = {
-      lang: 'eng',
+      lang: 'jpn+eng',
       oem: 1,
       psm: 3,
     };

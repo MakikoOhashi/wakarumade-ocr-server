@@ -53,6 +53,9 @@ app.post("/ocr", async (req, res) => {
       throw new Error("No text detected in the image");
     }
 
+    // Debug: Log raw OCR text
+    console.log("OCR RAW TEXT >>>", rawText);
+
     // Step 2: Format the extracted text using Gemini AI
     console.log("[OCR] Step 2/2: Formatting text with Gemini AI");
     const formatResponse = await fetch(`${API_URL}/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`, {
