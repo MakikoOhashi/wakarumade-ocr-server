@@ -6,7 +6,6 @@
   "main": "index.js",
   "scripts": {
     "dev": "node index.js",
-    "build": "echo 'Installing system dependencies...' && apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-jpn libtesseract-dev && echo 'System dependencies installed successfully'",
     "start": "node index.js"
   },
   "keywords": [],
@@ -14,12 +13,10 @@
   "license": "ISC",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@napi-rs/canvas": "^0.1.88",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "node-fetch": "^3.3.2",
-    "node-tesseract-ocr": "^2.2.1",
     "sharp": "^0.34.5"
   }
 }

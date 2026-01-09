@@ -2,13 +2,15 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
-import { extractTextWithTesseract } from './tesseract-ocr.js';
 
 dotenv.config();
 
 if (!process.env.GEMINI_API_KEY) {
   throw new Error("GEMINI_API_KEY is not set");
 }
+
+// Render OCR Server URL for Google Vision OCR
+const RENDER_OCR_URL = process.env.RENDER_OCR_URL || "https://wakarumade-ocr-server.onrender.com";
 
 // Use direct API calls to v1 endpoint since SDK v0.24.1 is hardcoded to v1beta
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -38,14 +40,29 @@ app.post("/ocr", async (req, res) => {
 
     console.log(`[OCR] Processing image, base64 length: ${base64.length}`);
 
-    // Step 1/2: Extracting text with Tesseract OCR
-    console.log("[OCR] Step 1/2: Extracting text with Tesseract OCR");
+    // Step 1/2: Extracting text with Google Vision OCR (via Render server)
+    console.log("[OCR] Step 1/2: Extracting text with Google Vision OCR");
     let rawText;
     try {
-      rawText = await extractTextWithTesseract(base64);
+      const ocrResponse = await fetch(`${RENDER_OCR_URL}/ocr`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ imageBase64 }),
+      });
+
+      if (!ocrResponse.ok) {
+        const errorText = await ocrResponse.text();
+        console.error("[OCR] Render OCR server error:", errorText);
+        throw new Error(`OCR server error: ${ocrResponse.status}`);
+      }
+
+      const ocrResult = await ocrResponse.json();
+      rawText = ocrResult.text || "";
       console.log(`[OCR] Extracted text length: ${rawText.length} characters`);
     } catch (ocrError) {
-      console.error("[OCR] Tesseract OCR failed:", ocrError.message);
+      console.error("[OCR] Google Vision OCR failed:", ocrError.message);
       throw new Error("OCR processing failed: " + ocrError.message);
     }
 
