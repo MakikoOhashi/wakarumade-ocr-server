@@ -111,6 +111,14 @@ app.post("/ocr", async (req, res) => {
             bestDistance = dist;
             bestBlock = block;
           }
+          const blockWords = [];
+          for (const paragraph of block.paragraphs || []) {
+            for (const word of paragraph.words || []) {
+              const text = (word.symbols || []).map((s) => s.text).join("");
+              if (text) blockWords.push(text);
+            }
+          }
+
           blocksWithBox.push({
             block,
             minX: Math.min(...xs),
@@ -118,6 +126,7 @@ app.post("/ocr", async (req, res) => {
             minY: Math.min(...ys),
             maxY: Math.max(...ys),
             center,
+            text: blockWords.join(""),
           });
         }
 
@@ -141,13 +150,15 @@ app.post("/ocr", async (req, res) => {
 
           const baseBox = centerBox;
           if (baseBox) {
-            const verticalThreshold = baseBox.height * 2.2;
+            const verticalThreshold = baseBox.height * 6;
             const centerX = baseBox.x + baseBox.width / 2;
             highlightBoxes = blocksWithBox
               .filter((item) => {
                 const dx = Math.abs(item.center.x - centerX);
                 const dy = Math.abs(item.center.y - (baseBox.y + baseBox.height / 2));
-                return dx < baseBox.width * 1.2 && dy < verticalThreshold;
+                const text = item.text || "";
+                const isAnswer = /答え|こたえ|答\b/.test(text);
+                return dx < baseBox.width * 1.5 && dy < verticalThreshold && !isAnswer;
               })
               .map((item) => ({
                 x: item.minX,
