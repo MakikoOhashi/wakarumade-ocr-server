@@ -48,6 +48,8 @@ app.post("/ocr", async (req, res) => {
     let rawText;
     let fullText = "";
     let centerText = "";
+    let centerBox = null;
+    let imageSize = null;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -83,6 +85,9 @@ app.post("/ocr", async (req, res) => {
       fullText = response?.textAnnotations?.[0]?.description || "";
 
       const page = response?.fullTextAnnotation?.pages?.[0];
+      if (page?.width && page?.height) {
+        imageSize = { width: page.width, height: page.height };
+      }
       if (page?.blocks?.length && page.width && page.height) {
         const imageCenter = { x: page.width / 2, y: page.height / 2 };
         let bestBlock = null;
@@ -108,6 +113,21 @@ app.post("/ocr", async (req, res) => {
 
         if (bestBlock) {
           const lines = [];
+          const box = bestBlock?.boundingBox?.vertices || [];
+          if (box.length) {
+            const xs = box.map((v) => v?.x ?? 0);
+            const ys = box.map((v) => v?.y ?? 0);
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            const minY = Math.min(...ys);
+            const maxY = Math.max(...ys);
+            centerBox = {
+              x: minX,
+              y: minY,
+              width: maxX - minX,
+              height: maxY - minY,
+            };
+          }
           for (const paragraph of bestBlock.paragraphs || []) {
             const words = [];
             for (const word of paragraph.words || []) {
@@ -211,7 +231,7 @@ app.post("/ocr", async (req, res) => {
       });
     }
 
-    res.json({ ...data, primaryIndex });
+    res.json({ ...data, primaryIndex, primaryBox: centerBox, imageSize });
 
   } catch (err) {
     console.error(err);
