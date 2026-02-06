@@ -152,7 +152,7 @@ app.post("/ocr", async (req, res) => {
           if (baseBox) {
             const verticalThreshold = baseBox.height * 6;
             const centerX = baseBox.x + baseBox.width / 2;
-            highlightBoxes = blocksWithBox
+            const candidates = blocksWithBox
               .filter((item) => {
                 const dx = Math.abs(item.center.x - centerX);
                 const dy = Math.abs(item.center.y - (baseBox.y + baseBox.height / 2));
@@ -160,13 +160,35 @@ app.post("/ocr", async (req, res) => {
                 const isAnswer = /答え|こたえ|答\b/.test(text);
                 return dx < baseBox.width * 1.5 && dy < verticalThreshold && !isAnswer;
               })
-              .map((item) => ({
+              .sort((a, b) => a.minY - b.minY);
+
+            const grouped = [];
+            const gapThreshold = baseBox.height * 1.6;
+            for (const item of candidates) {
+              if (!grouped.length) {
+                grouped.push(item);
+                continue;
+              }
+              const prev = grouped[grouped.length - 1];
+              const gap = item.minY - prev.maxY;
+              if (gap > gapThreshold) break;
+              grouped.push(item);
+            }
+
+            const endPattern = /[?？]|になりますか|なんかい|いくつ|何回|何こ|何さじ|何枚/;
+            if (grouped.length) {
+              const trimmed = [];
+              for (const item of grouped) {
+                trimmed.push(item);
+                if (endPattern.test(item.text || "")) break;
+              }
+              highlightBoxes = trimmed.map((item) => ({
                 x: item.minX,
                 y: item.minY,
                 width: item.maxX - item.minX,
                 height: item.maxY - item.minY,
-              }))
-              .sort((a, b) => a.y - b.y);
+              }));
+            }
           }
 
           for (const paragraph of bestBlock.paragraphs || []) {
