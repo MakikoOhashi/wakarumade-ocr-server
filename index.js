@@ -50,6 +50,7 @@ app.post("/ocr", async (req, res) => {
     let centerText = "";
     let centerBox = null;
     let imageSize = null;
+    let highlightBoxes = [];
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -93,6 +94,7 @@ app.post("/ocr", async (req, res) => {
         let bestBlock = null;
         let bestDistance = Number.POSITIVE_INFINITY;
 
+        const blocksWithBox = [];
         for (const block of page.blocks) {
           const box = block?.boundingBox?.vertices || [];
           if (box.length === 0) continue;
@@ -109,6 +111,14 @@ app.post("/ocr", async (req, res) => {
             bestDistance = dist;
             bestBlock = block;
           }
+          blocksWithBox.push({
+            block,
+            minX: Math.min(...xs),
+            maxX: Math.max(...xs),
+            minY: Math.min(...ys),
+            maxY: Math.max(...ys),
+            center,
+          });
         }
 
         if (bestBlock) {
@@ -128,6 +138,26 @@ app.post("/ocr", async (req, res) => {
               height: maxY - minY,
             };
           }
+
+          const baseBox = centerBox;
+          if (baseBox) {
+            const verticalThreshold = baseBox.height * 2.2;
+            const centerX = baseBox.x + baseBox.width / 2;
+            highlightBoxes = blocksWithBox
+              .filter((item) => {
+                const dx = Math.abs(item.center.x - centerX);
+                const dy = Math.abs(item.center.y - (baseBox.y + baseBox.height / 2));
+                return dx < baseBox.width * 1.2 && dy < verticalThreshold;
+              })
+              .map((item) => ({
+                x: item.minX,
+                y: item.minY,
+                width: item.maxX - item.minX,
+                height: item.maxY - item.minY,
+              }))
+              .sort((a, b) => a.y - b.y);
+          }
+
           for (const paragraph of bestBlock.paragraphs || []) {
             const words = [];
             for (const word of paragraph.words || []) {
@@ -231,7 +261,13 @@ app.post("/ocr", async (req, res) => {
       });
     }
 
-    res.json({ ...data, primaryIndex, primaryBox: centerBox, imageSize });
+    res.json({
+      ...data,
+      primaryIndex,
+      primaryBox: centerBox,
+      highlightBoxes,
+      imageSize,
+    });
 
   } catch (err) {
     console.error(err);
