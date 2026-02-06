@@ -46,6 +46,8 @@ app.post("/ocr", async (req, res) => {
     // Step 1/2: Extracting text with Google Vision OCR (direct API)
     console.log("[OCR] Step 1/2: Extracting text with Google Vision OCR");
     let rawText;
+    let fullText = "";
+    let centerText = "";
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -78,6 +80,7 @@ app.post("/ocr", async (req, res) => {
 
       const ocrResult = await ocrResponse.json();
       const response = ocrResult?.responses?.[0];
+      fullText = response?.textAnnotations?.[0]?.description || "";
 
       const page = response?.fullTextAnnotation?.pages?.[0];
       if (page?.blocks?.length && page.width && page.height) {
@@ -113,14 +116,11 @@ app.post("/ocr", async (req, res) => {
             }
             if (words.length) lines.push(words.join(" "));
           }
-          rawText = lines.join("\n");
+          centerText = lines.join("\n");
         }
       }
 
-      if (!rawText) {
-        const textAnnotation = response?.textAnnotations?.[0]?.description || "";
-        rawText = textAnnotation;
-      }
+      rawText = fullText || centerText;
       console.log(`[OCR] Extracted text length: ${rawText.length} characters`);
     } catch (ocrError) {
       console.error("[OCR] Google Vision OCR failed:", ocrError.message);
@@ -146,7 +146,7 @@ app.post("/ocr", async (req, res) => {
           {
             parts: [
               {
-                text: `以下の算数の問題テキストをJSON形式に整理してください:\n\n${rawText}\n\n形式: {problems:[{number,question}]}`,
+                text: `以下の算数の問題テキストをJSON形式に整理してください:\n\n${fullText || rawText}\n\n形式: {problems:[{number,question}]}`,
               },
             ],
           },
@@ -171,7 +171,47 @@ app.post("/ocr", async (req, res) => {
     const cleaned = formattedText.replace(/```json|```/g, "").trim();
 
     const data = JSON.parse(cleaned);
-    res.json(data);
+
+    const normalize = (text) =>
+      (text || "")
+        .toLowerCase()
+        .replace(/[\s、。．，,.\-–—・:;'"「」『』（）()\[\]{}!?！？]/g, "");
+
+    const scoreMatch = (center, question) => {
+      const a = normalize(center);
+      const b = normalize(question);
+      if (!a || !b) return 0;
+      if (a.includes(b) || b.includes(a)) {
+        const minLen = Math.min(a.length, b.length);
+        const maxLen = Math.max(a.length, b.length);
+        return 1 + minLen / maxLen;
+      }
+      const freq = new Map();
+      for (const ch of a) freq.set(ch, (freq.get(ch) || 0) + 1);
+      let common = 0;
+      for (const ch of b) {
+        const count = freq.get(ch) || 0;
+        if (count > 0) {
+          common += 1;
+          freq.set(ch, count - 1);
+        }
+      }
+      return common / Math.max(1, b.length);
+    };
+
+    let primaryIndex = 0;
+    if (data?.problems?.length) {
+      let bestScore = -1;
+      data.problems.forEach((p, idx) => {
+        const score = scoreMatch(centerText || fullText, p.question);
+        if (score > bestScore) {
+          bestScore = score;
+          primaryIndex = idx;
+        }
+      });
+    }
+
+    res.json({ ...data, primaryIndex });
 
   } catch (err) {
     console.error(err);
