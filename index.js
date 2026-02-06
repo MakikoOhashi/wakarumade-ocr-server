@@ -59,7 +59,7 @@ app.post("/ocr", async (req, res) => {
           requests: [
             {
               image: { content: base64 },
-              features: [{ type: "TEXT_DETECTION" }],
+              features: [{ type: "DOCUMENT_TEXT_DETECTION" }],
               imageContext: {
                 languageHints: ["ja", "en"],
               },
@@ -77,9 +77,50 @@ app.post("/ocr", async (req, res) => {
       }
 
       const ocrResult = await ocrResponse.json();
-      const textAnnotation =
-        ocrResult?.responses?.[0]?.textAnnotations?.[0]?.description || "";
-      rawText = textAnnotation;
+      const response = ocrResult?.responses?.[0];
+
+      const page = response?.fullTextAnnotation?.pages?.[0];
+      if (page?.blocks?.length && page.width && page.height) {
+        const imageCenter = { x: page.width / 2, y: page.height / 2 };
+        let bestBlock = null;
+        let bestDistance = Number.POSITIVE_INFINITY;
+
+        for (const block of page.blocks) {
+          const box = block?.boundingBox?.vertices || [];
+          if (box.length === 0) continue;
+          const xs = box.map((v) => v?.x ?? 0);
+          const ys = box.map((v) => v?.y ?? 0);
+          const center = {
+            x: (Math.min(...xs) + Math.max(...xs)) / 2,
+            y: (Math.min(...ys) + Math.max(...ys)) / 2,
+          };
+          const dx = center.x - imageCenter.x;
+          const dy = center.y - imageCenter.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < bestDistance) {
+            bestDistance = dist;
+            bestBlock = block;
+          }
+        }
+
+        if (bestBlock) {
+          const lines = [];
+          for (const paragraph of bestBlock.paragraphs || []) {
+            const words = [];
+            for (const word of paragraph.words || []) {
+              const text = (word.symbols || []).map((s) => s.text).join("");
+              if (text) words.push(text);
+            }
+            if (words.length) lines.push(words.join(" "));
+          }
+          rawText = lines.join("\n");
+        }
+      }
+
+      if (!rawText) {
+        const textAnnotation = response?.textAnnotations?.[0]?.description || "";
+        rawText = textAnnotation;
+      }
       console.log(`[OCR] Extracted text length: ${rawText.length} characters`);
     } catch (ocrError) {
       console.error("[OCR] Google Vision OCR failed:", ocrError.message);
