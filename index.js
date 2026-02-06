@@ -9,12 +9,15 @@ if (!process.env.GEMINI_API_KEY) {
   throw new Error("GEMINI_API_KEY is not set");
 }
 
-// Render OCR Server URL for Google Vision OCR
-const RENDER_OCR_URL = process.env.RENDER_OCR_URL || "https://wakarumade-ocr-server.onrender.com";
+if (!process.env.VISION_API_KEY) {
+  throw new Error("VISION_API_KEY is not set");
+}
 
 // Use direct API calls to v1 endpoint since SDK v0.24.1 is hardcoded to v1beta
 const API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1";
+const VISION_API_KEY = process.env.VISION_API_KEY;
+const VISION_API_URL = "https://vision.googleapis.com/v1/images:annotate";
 
 const app = express();
 app.use(cors());
@@ -40,26 +43,43 @@ app.post("/ocr", async (req, res) => {
 
     console.log(`[OCR] Processing image, base64 length: ${base64.length}`);
 
-    // Step 1/2: Extracting text with Google Vision OCR (via Render server)
+    // Step 1/2: Extracting text with Google Vision OCR (direct API)
     console.log("[OCR] Step 1/2: Extracting text with Google Vision OCR");
     let rawText;
     try {
-      const ocrResponse = await fetch(`${RENDER_OCR_URL}/ocr`, {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+      const ocrResponse = await fetch(`${VISION_API_URL}?key=${VISION_API_KEY}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ imageBase64 }),
+        body: JSON.stringify({
+          requests: [
+            {
+              image: { content: base64 },
+              features: [{ type: "TEXT_DETECTION" }],
+              imageContext: {
+                languageHints: ["ja", "en"],
+              },
+            },
+          ],
+        }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!ocrResponse.ok) {
         const errorText = await ocrResponse.text();
-        console.error("[OCR] Render OCR server error:", errorText);
-        throw new Error(`OCR server error: ${ocrResponse.status}`);
+        console.error("[OCR] Vision API error:", errorText);
+        throw new Error(`Vision API error: ${ocrResponse.status}`);
       }
 
       const ocrResult = await ocrResponse.json();
-      rawText = ocrResult.text || "";
+      const textAnnotation =
+        ocrResult?.responses?.[0]?.textAnnotations?.[0]?.description || "";
+      rawText = textAnnotation;
       console.log(`[OCR] Extracted text length: ${rawText.length} characters`);
     } catch (ocrError) {
       console.error("[OCR] Google Vision OCR failed:", ocrError.message);
