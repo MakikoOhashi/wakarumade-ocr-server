@@ -138,6 +138,54 @@ app.post("/ocr", async (req, res) => {
   }
 });
 
+app.post("/chat", async (req, res) => {
+  try {
+    const { problem, message, language } = req.body || {};
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "message is required" });
+    }
+
+    const safeLanguage = language === "en" ? "English" : "Japanese";
+    const problemText =
+      (problem && (problem.question || problem.text)) ||
+      (typeof problem === "string" ? problem : "");
+
+    const prompt = `Problem: ${problemText}\n\nUser: ${message}\n\nPlease help solve this math problem step by step in ${safeLanguage}.`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+    const response = await fetch(`${API_URL}/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }],
+          },
+        ],
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Gemini Chat Error:", errorData);
+      throw new Error(`Gemini Chat Error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    return res.json({ text });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Failed to generate response" });
+  }
+});
+
 app.listen(3333, () => {
   console.log("OCR server running on http://localhost:3333");
 });
