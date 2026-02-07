@@ -308,6 +308,26 @@ app.post("/ocr", async (req, res) => {
   }
 });
 
+const isUnsafeTeacherReply = (text = "") => {
+  const t = String(text);
+  if (!t.trim()) return true;
+  // Must be a short guiding question
+  if (!/[？?]$/.test(t.trim())) return true;
+  if (t.length > 200) return true;
+  // Disallow explicit answers or equations
+  if (/[=＝]/.test(t)) return true;
+  if (/答え|解答|答えは|結果|よって|だから|計算|合計/.test(t)) return true;
+  if (/\d+\s*[\+\-×xX\*÷\/]\s*\d+/.test(t)) return true;
+  return false;
+};
+
+const buildTeacherPrompt = ({ problemText, message, safeLanguage }) => {
+  if (safeLanguage === "English") {
+    return `Problem: ${problemText}\n\nUser: ${message}\n\nRules:\n- Ask only ONE short guiding question.\n- Do NOT show steps or equations.\n- Do NOT give the final numeric answer.\n- End with a question mark.\n- Keep it encouraging.\n\nReply with only the teacher message.`;
+  }
+  return `問題: ${problemText}\n\n生徒: ${message}\n\nルール:\n- 先生の返答は短い質問を1つだけ。\n- 手順や計算式は書かない。\n- 答えの数値は言わない。\n- 文末は必ず「？」で終える。\n- 日本語でやさしく。\n- 難しい漢字には必要に応じて（ふりがな）を入れる。\n\n先生の返答だけを書いてください。`;
+};
+
 app.post("/chat", async (req, res) => {
   try {
     const { problem, message, language } = req.body || {};
@@ -320,7 +340,7 @@ app.post("/chat", async (req, res) => {
       (problem && (problem.question || problem.text)) ||
       (typeof problem === "string" ? problem : "");
 
-    const prompt = `Problem: ${problemText}\n\nUser: ${message}\n\nPlease help solve this math problem step by step in ${safeLanguage}.`;
+    const prompt = buildTeacherPrompt({ problemText, message, safeLanguage });
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -348,7 +368,45 @@ app.post("/chat", async (req, res) => {
     }
 
     const result = await response.json();
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    if (isUnsafeTeacherReply(text)) {
+      const retryPrompt =
+        (safeLanguage === "English"
+          ? "Return ONLY one short question. No steps. No equations. No final answer. End with '?'."
+          : "短い質問を1つだけ返してください。手順・計算式・答えの数値は禁止。文末は「？」で終える。");
+
+      const retryResponse = await fetch(`${API_URL}/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: `${prompt}\n\n${retryPrompt}` }],
+            },
+          ],
+        }),
+        signal: controller.signal,
+      });
+
+      if (retryResponse.ok) {
+        const retryResult = await retryResponse.json();
+        const retryText = retryResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        if (!isUnsafeTeacherReply(retryText)) {
+          text = retryText;
+        }
+      }
+    }
+
+    if (isUnsafeTeacherReply(text)) {
+      text =
+        safeLanguage === "English"
+          ? "Which numbers should we combine first?"
+          : "どの数（かず）を合わせればよさそうかな？";
+    }
+
     return res.json({ text });
   } catch (err) {
     console.error(err);
