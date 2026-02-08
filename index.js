@@ -324,6 +324,14 @@ const extractNumbers = (text) => {
   return matches.map((value) => Number(value)).filter((value) => !Number.isNaN(value));
 };
 
+const normalizeForMatch = (value) => {
+  return String(value)
+    .replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+    .replace(/[＋]/g, "+")
+    .replace(/[－−]/g, "-")
+    .replace(/\s+/g, "");
+};
+
 const detectOperation = (text) => {
   const t = String(text);
   const addKeywords = ["あわせて", "合わせて", "たす", "足し", "足す", "合計", "ぜんぶ", "全部", "合計", "total", "sum", "add", "plus"];
@@ -334,9 +342,11 @@ const detectOperation = (text) => {
 };
 
 const detectOperationFromMessage = (message) => {
-  const t = String(message);
+  const t = normalizeForMatch(message);
   if (/[＋+]/.test(t) || /足(し|す)|たす/.test(t)) return "add";
   if (/[−-]/.test(t) || /引(き|く)|ひく/.test(t)) return "sub";
+  if (t.includes("ぜんぶ") || t.includes("全部")) return "add";
+  if (t.includes("のこり") || t.includes("残り")) return "sub";
   return "unknown";
 };
 
@@ -410,7 +420,7 @@ const buildQuestion = ({ lang, state, problemText, message }) => {
   }
 
   if (state.step === 1) {
-    if (state.hintLevel === 0) return `${prefix}この問題(もんだい)は足(た)し算(ざん)？引(ひ)き算(ざん)？`;
+    if (state.hintLevel === 0) return `${prefix}さいごは「ぜんぶ」？それとも「のこり」？`;
     if (state.hintLevel === 1 && op === "add") return `${prefix}「ぜんぶ」や「あわせて」は足(た)し算(ざん)だよ。どっち？`;
     if (state.hintLevel === 1 && op === "sub") return `${prefix}「のこり」は引(ひ)き算(ざん)だよ。どっち？`;
     return `${prefix}「ぜんぶ」か「のこり」の言葉(ことば)に注目(ちゅうもく)してみよう。どっち？`;
@@ -430,7 +440,7 @@ const buildQuestion = ({ lang, state, problemText, message }) => {
 };
 
 const evaluateStep = ({ state, problemText, message }) => {
-  const msg = String(message);
+  const msg = normalizeForMatch(message);
   const opFromMessage = detectOperationFromMessage(msg);
   const numbers = extractNumbers(problemText);
   const expectedOp = detectOperation(problemText);
