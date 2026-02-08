@@ -325,7 +325,7 @@ const buildTeacherPrompt = ({ problemText, message, safeLanguage }) => {
   if (safeLanguage === "English") {
     return `Problem: ${problemText}\n\nUser: ${message}\n\nRules:\n- Ask only ONE short guiding question.\n- Do NOT show steps or equations.\n- Do NOT give the final numeric answer.\n- End with a question mark.\n- Keep it encouraging.\n\nReply with only the teacher message.`;
   }
-  return `問題: ${problemText}\n\n生徒: ${message}\n\nルール:\n- 先生の返答は短い質問を1つだけ。\n- 手順や計算式は書かない。\n- 答えの数値は言わない。\n- 文末は必ず「？」で終える。\n- 日本語でやさしく。\n- 難しい漢字には必要に応じて（ふりがな）を入れる。\n\n先生の返答だけを書いてください。`;
+  return `問題: ${problemText}\n\n生徒: ${message}\n\nルール:\n- 先生の返答は短い質問を1つだけ。\n- 手順や計算式は書かない。\n- 答えの数値は言わない。\n- 文末は必ず「？」で終える。\n- 日本語でやさしく。\n- 難しい漢字には必要に応じて（ふりがな）を入れる。\n- 生徒が答えを出した後は、同じ理由質問を繰り返さず、ほめて次の一歩をたずねる（例:「いいね！次(つぎ)の問題(もんだい)に進(すす)む？」）。\n- 生徒がすでに理由(りゆう)を説明している場合は、追加で理由を要求しない。\n\n先生の返答だけを書いてください。`;
 };
 
 app.post("/chat", async (req, res) => {
