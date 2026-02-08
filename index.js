@@ -308,106 +308,221 @@ app.post("/ocr", async (req, res) => {
   }
 });
 
-const isUnsafeTeacherReply = (text = "") => {
-  const t = String(text);
-  if (!t.trim()) return true;
-  // Must be a short guiding question
-  if (!/[？?]$/.test(t.trim())) return true;
-  if (t.length > 200) return true;
-  // Disallow explicit answers or equations
-  if (/[=＝]/.test(t)) return true;
-  if (/答え|解答|答えは|結果|よって|だから|計算|合計/.test(t)) return true;
-  if (/\d+\s*[\+\-×xX\*÷\/]\s*\d+/.test(t)) return true;
-  return false;
+const getInitialLearningState = () => ({
+  step: 1,
+  retryCount: 0,
+  hintLevel: 0,
+  consecutiveSuccess: 0,
+  consecutiveFailure: 0,
+  tone: "neutral",
+  mistakeType: "unknown",
+  completed: false,
+});
+
+const extractNumbers = (text) => {
+  const matches = String(text).match(/-?\d+(?:\.\d+)?/g) || [];
+  return matches.map((value) => Number(value)).filter((value) => !Number.isNaN(value));
 };
 
-const buildTeacherPrompt = ({ problemText, message, safeLanguage }) => {
-  if (safeLanguage === "English") {
-    return `Problem: ${problemText}\n\nUser: ${message}\n\nRules:\n- Ask only ONE short guiding question.\n- Do NOT show steps or equations.\n- Do NOT give the final numeric answer.\n- End with a question mark.\n- Keep it encouraging.\n\nReply with only the teacher message.`;
+const detectOperation = (text) => {
+  const t = String(text);
+  const addKeywords = ["あわせて", "合わせて", "たす", "足し", "足す", "合計", "ぜんぶ", "全部", "合計", "total", "sum", "add", "plus"];
+  const subKeywords = ["のこり", "残り", "ひく", "引き", "引く", "差", "difference", "minus", "subtract"];
+  if (addKeywords.some((k) => t.includes(k))) return "add";
+  if (subKeywords.some((k) => t.includes(k))) return "sub";
+  return "unknown";
+};
+
+const detectOperationFromMessage = (message) => {
+  const t = String(message);
+  if (/[＋+]/.test(t) || /足(し|す)|たす/.test(t)) return "add";
+  if (/[−-]/.test(t) || /引(き|く)|ひく/.test(t)) return "sub";
+  return "unknown";
+};
+
+const extractFirstNumberFromMessage = (message) => {
+  const match = String(message).match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const value = Number(match[0]);
+  return Number.isNaN(value) ? null : value;
+};
+
+const computeCorrectAnswer = (problemText) => {
+  const numbers = extractNumbers(problemText);
+  if (numbers.length < 2) return null;
+  const op = detectOperation(problemText);
+  if (op === "add") {
+    return numbers.reduce((sum, n) => sum + n, 0);
   }
-  return `問題: ${problemText}\n\n生徒: ${message}\n\nルール:\n- 先生の返答は短い質問を1つだけ。\n- 手順や計算式は書かない。\n- 答えの数値は言わない。\n- 文末は必ず「？」で終える。\n- 日本語でやさしく。\n- 難しい漢字には必要に応じて（ふりがな）を入れる。\n- 生徒が答えを出した後は、同じ理由質問を繰り返さず、ほめて次の一歩をたずねる（例:「いいね！次(つぎ)の問題(もんだい)に進(すす)む？」）。\n- 生徒がすでに理由(りゆう)を説明している場合は、追加で理由を要求しない。\n\n先生の返答だけを書いてください。`;
+  if (op === "sub") {
+    return numbers[0] - numbers[1];
+  }
+  return null;
+};
+
+const chooseTonePrefix = (tone, lang) => {
+  if (lang === "English") {
+    if (tone === "supportive") return "You're doing great. ";
+    if (tone === "energetic") return "Nice! ";
+    return "";
+  }
+  if (tone === "supportive") return "だいじょうぶ！";
+  if (tone === "energetic") return "いいね！";
+  return "";
+};
+
+const buildQuestion = ({ lang, state, problemText, message }) => {
+  const prefix = chooseTonePrefix(state.tone, lang);
+  const numbers = extractNumbers(problemText);
+  const op = detectOperation(problemText);
+
+  if (state.completed) {
+    const yes = /はい|うん|次|すす|進/.test(message);
+    if (yes) {
+      return lang === "English"
+        ? `${prefix}Ready for the next problem?`
+        : `${prefix}次(つぎ)の問題(もんだい)に進(すす)む？`;
+    }
+    return lang === "English"
+      ? `${prefix}Want to try this one again?`
+      : `${prefix}もう一度(いちど)やってみる？`;
+  }
+
+  if (lang === "English") {
+    if (state.step === 1) {
+      if (state.hintLevel === 0) return `${prefix}Is this an addition or subtraction problem?`;
+      if (state.hintLevel === 1 && op === "add") return `${prefix}Words like "total" often mean addition. Which is it?`;
+      if (state.hintLevel === 1 && op === "sub") return `${prefix}Words like "remaining" often mean subtraction. Which is it?`;
+      return `${prefix}Look for words like "total" or "remaining". Which operation fits?`;
+    }
+    if (state.step === 2) {
+      if (state.hintLevel === 0) return `${prefix}What numbers appear in the problem?`;
+      if (state.hintLevel === 1 && numbers.length >= 2) return `${prefix}I see ${numbers[0]} and ${numbers[1]}. Can you say them?`;
+      return `${prefix}Which two numbers should we use?`;
+    }
+    if (state.step === 3) {
+      if (state.hintLevel === 0) return `${prefix}What is the result when you combine those numbers?`;
+      if (state.hintLevel === 1 && op === "add") return `${prefix}Try adding the two numbers. What do you get?`;
+      if (state.hintLevel === 1 && op === "sub") return `${prefix}Try subtracting the numbers. What do you get?`;
+      return `${prefix}Compute the result. What number do you get?`;
+    }
+    return `${prefix}Can you explain why that answer makes sense?`;
+  }
+
+  if (state.step === 1) {
+    if (state.hintLevel === 0) return `${prefix}この問題(もんだい)は足(た)し算(ざん)？引(ひ)き算(ざん)？`;
+    if (state.hintLevel === 1 && op === "add") return `${prefix}「ぜんぶ」や「あわせて」は足(た)し算(ざん)だよ。どっち？`;
+    if (state.hintLevel === 1 && op === "sub") return `${prefix}「のこり」は引(ひ)き算(ざん)だよ。どっち？`;
+    return `${prefix}「ぜんぶ」か「のこり」の言葉(ことば)に注目(ちゅうもく)してみよう。どっち？`;
+  }
+  if (state.step === 2) {
+    if (state.hintLevel === 0) return `${prefix}問題(もんだい)に出(で)てくる数(かず)は何(なん)と何(なに)かな？`;
+    if (state.hintLevel === 1 && numbers.length >= 2) return `${prefix}${numbers[0]}と${numbers[1]}が出(で)てくるよ。言(い)える？`;
+    return `${prefix}使(つか)う数(かず)を2つ言(い)ってみよう。`;
+  }
+  if (state.step === 3) {
+    if (state.hintLevel === 0) return `${prefix}その2つで、ぜんぶ何(なん)になるかな？`;
+    if (state.hintLevel === 1 && op === "add") return `${prefix}たし算(ざん)で計算(けいさん)してみよう。いくつ？`;
+    if (state.hintLevel === 1 && op === "sub") return `${prefix}ひき算(ざん)で計算(けいさん)してみよう。いくつ？`;
+    return `${prefix}数(かず)を合わせるといくつ？`;
+  }
+  return `${prefix}どうしてそう思(おも)ったのか、教(おし)えてくれる？`;
+};
+
+const evaluateStep = ({ state, problemText, message }) => {
+  const msg = String(message);
+  const opFromMessage = detectOperationFromMessage(msg);
+  const numbers = extractNumbers(problemText);
+  const expectedOp = detectOperation(problemText);
+  const correctAnswer = computeCorrectAnswer(problemText);
+
+  if (state.step === 1) {
+    if (opFromMessage !== "unknown") return { success: true };
+    return { success: false, mistakeType: "misunderstanding" };
+  }
+
+  if (state.step === 2) {
+    if (numbers.length >= 2) {
+      const a = String(numbers[0]);
+      const b = String(numbers[1]);
+      if (msg.includes(a) && msg.includes(b)) return { success: true };
+    }
+    return { success: false, mistakeType: "misunderstanding" };
+  }
+
+  if (state.step === 3) {
+    const answer = extractFirstNumberFromMessage(msg);
+    if (answer === null) return { success: false, mistakeType: "misunderstanding" };
+    if (typeof correctAnswer === "number") {
+      if (Math.abs(answer - correctAnswer) < 1e-9) return { success: true };
+      return { success: false, mistakeType: "calculation_error" };
+    }
+    return { success: true };
+  }
+
+  if (state.step === 4) {
+    if (/だから|ので|たす|足(し|す)|引(き|く)|ひく/.test(msg)) return { success: true };
+    return { success: false, mistakeType: "misunderstanding" };
+  }
+
+  return { success: false, mistakeType: "unknown" };
+};
+
+const updateLearningState = (state, result) => {
+  const next = { ...state };
+  if (result.success) {
+    next.consecutiveSuccess += 1;
+    next.consecutiveFailure = 0;
+    next.retryCount = 0;
+    next.hintLevel = 0;
+    if (next.step < 4) {
+      next.step += 1;
+    } else {
+      next.completed = true;
+    }
+  } else {
+    next.consecutiveFailure += 1;
+    next.consecutiveSuccess = 0;
+    next.retryCount += 1;
+    next.mistakeType = result.mistakeType || "unknown";
+    if (next.retryCount >= 2 && next.hintLevel < 2) {
+      next.hintLevel += 1;
+      next.retryCount = 0;
+    }
+  }
+
+  if (next.consecutiveFailure >= 2) {
+    next.tone = "supportive";
+  } else if (next.consecutiveSuccess >= 2) {
+    next.tone = "energetic";
+  } else {
+    next.tone = "neutral";
+  }
+
+  return next;
 };
 
 app.post("/chat", async (req, res) => {
   try {
-    const { problem, message, language } = req.body || {};
+    const { problem, message, language, learningState } = req.body || {};
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "message is required" });
     }
 
-    const safeLanguage = language === "en" ? "English" : "Japanese";
     const problemText =
       (problem && (problem.question || problem.text)) ||
       (typeof problem === "string" ? problem : "");
 
-    const prompt = buildTeacherPrompt({ problemText, message, safeLanguage });
+    const lang = language === "en" ? "English" : "Japanese";
+    const state = learningState && typeof learningState === "object"
+      ? { ...getInitialLearningState(), ...learningState }
+      : getInitialLearningState();
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const result = evaluateStep({ state, problemText, message });
+    const nextState = updateLearningState(state, result);
+    const text = buildQuestion({ lang, state: nextState, problemText, message });
 
-    const response = await fetch(`${API_URL}/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("Gemini Chat Error:", errorData);
-      throw new Error(`Gemini Chat Error: ${response.status}`);
-    }
-
-    const result = await response.json();
-    let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    if (isUnsafeTeacherReply(text)) {
-      const retryPrompt =
-        (safeLanguage === "English"
-          ? "Return ONLY one short question. No steps. No equations. No final answer. End with '?'."
-          : "短い質問を1つだけ返してください。手順・計算式・答えの数値は禁止。文末は「？」で終える。");
-
-      const retryResponse = await fetch(`${API_URL}/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: `${prompt}\n\n${retryPrompt}` }],
-            },
-          ],
-        }),
-        signal: controller.signal,
-      });
-
-      if (retryResponse.ok) {
-        const retryResult = await retryResponse.json();
-        const retryText = retryResult.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        if (!isUnsafeTeacherReply(retryText)) {
-          text = retryText;
-        }
-      }
-    }
-
-    if (isUnsafeTeacherReply(text)) {
-      text =
-        safeLanguage === "English"
-          ? "Which numbers should we combine first?"
-          : "どの数（かず）を合わせればよさそうかな？";
-    }
-
-    return res.json({ text });
+    return res.json({ text, learningState: nextState });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Failed to generate response" });
