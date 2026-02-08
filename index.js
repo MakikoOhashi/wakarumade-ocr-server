@@ -317,6 +317,8 @@ const getInitialLearningState = () => ({
   tone: "neutral",
   mistakeType: "unknown",
   completed: false,
+  praiseToggle: false,
+  shouldAskReason: false,
 });
 
 const extractNumbers = (text) => {
@@ -372,12 +374,12 @@ const computeCorrectAnswer = (problemText) => {
 
 const chooseTonePrefix = (tone, lang) => {
   if (lang === "English") {
-    if (tone === "supportive") return "You're doing great. ";
-    if (tone === "energetic") return "Nice! ";
+    if (tone === "supportive") return "It's okay. ";
+    if (tone === "energetic") return "Nice. ";
     return "";
   }
-  if (tone === "supportive") return "だいじょうぶ！";
-  if (tone === "energetic") return "いいね！";
+  if (tone === "supportive") return "だいじょうぶ。";
+  if (tone === "energetic") return "いいね。";
   return "";
 };
 
@@ -385,6 +387,8 @@ const buildQuestion = ({ lang, state, problemText, message }) => {
   const prefix = chooseTonePrefix(state.tone, lang);
   const numbers = extractNumbers(problemText);
   const op = detectOperation(problemText);
+  const usePraise = !!state.praiseToggle;
+  const calmPrefix = usePraise ? prefix : "";
 
   if (state.completed) {
     const yes = /はい|うん|次|すす|進/.test(message);
@@ -400,44 +404,44 @@ const buildQuestion = ({ lang, state, problemText, message }) => {
 
   if (lang === "English") {
     if (state.step === 1) {
-      if (state.hintLevel === 0) return `${prefix}Is this an addition or subtraction problem?`;
-      if (state.hintLevel === 1 && op === "add") return `${prefix}Words like "total" often mean addition. Which is it?`;
-      if (state.hintLevel === 1 && op === "sub") return `${prefix}Words like "remaining" often mean subtraction. Which is it?`;
-      return `${prefix}Look for words like "total" or "remaining". Which operation fits?`;
+      if (state.hintLevel === 0) return `${calmPrefix}Is this a "total" or "remaining" question?`;
+      if (state.hintLevel === 1 && op === "add") return `${calmPrefix}Words like "total" often mean addition. Which is it?`;
+      if (state.hintLevel === 1 && op === "sub") return `${calmPrefix}Words like "remaining" often mean subtraction. Which is it?`;
+      return `${calmPrefix}Look for words like "total" or "remaining". Which fits?`;
     }
     if (state.step === 2) {
-      if (state.hintLevel === 0) return `${prefix}What numbers appear in the problem?`;
-      if (state.hintLevel === 1 && numbers.length >= 2) return `${prefix}I see ${numbers[0]} and ${numbers[1]}. Can you say them?`;
-      return `${prefix}Which two numbers should we use?`;
+      if (state.hintLevel === 0) return `${calmPrefix}What numbers appear in the problem?`;
+      if (state.hintLevel === 1 && numbers.length >= 2) return `${calmPrefix}I see ${numbers[0]} and ${numbers[1]}. Can you say them?`;
+      return `${calmPrefix}Which two numbers should we use?`;
     }
     if (state.step === 3) {
-      if (state.hintLevel === 0) return `${prefix}What is the result when you combine those numbers?`;
-      if (state.hintLevel === 1 && op === "add") return `${prefix}Try adding the two numbers. What do you get?`;
-      if (state.hintLevel === 1 && op === "sub") return `${prefix}Try subtracting the numbers. What do you get?`;
-      return `${prefix}Compute the result. What number do you get?`;
+      if (state.hintLevel === 0) return `${calmPrefix}What do you get when you combine those numbers?`;
+      if (state.hintLevel === 1 && op === "add") return `${calmPrefix}Try adding the two numbers. What do you get?`;
+      if (state.hintLevel === 1 && op === "sub") return `${calmPrefix}Try subtracting the numbers. What do you get?`;
+      return `${calmPrefix}Compute the result. What number do you get?`;
     }
-    return `${prefix}Can you explain why that answer makes sense?`;
+    return `${calmPrefix}Can you explain why that answer makes sense?`;
   }
 
   if (lang === "Japanese") {
     if (state.step === 1) {
-      if (state.hintLevel === 0) return `${prefix}さいごは「ぜんぶ」？それとも「のこり」？`;
-      if (state.hintLevel === 1 && op === "add") return `${prefix}「ぜんぶ」や「あわせて」は足(た)し算(ざん)だよ。どっち？`;
-      if (state.hintLevel === 1 && op === "sub") return `${prefix}「のこり」は引(ひ)き算(ざん)だよ。どっち？`;
-      return `${prefix}「ぜんぶ」か「のこり」の言葉(ことば)に注目(ちゅうもく)してみよう。どっち？`;
+      if (state.hintLevel === 0) return `${calmPrefix}さいごは「ぜんぶ」？それとも「のこり」？`;
+      if (state.hintLevel === 1 && op === "add") return `${calmPrefix}「ぜんぶ」や「あわせて」は足(た)し算(ざん)だよ。どっち？`;
+      if (state.hintLevel === 1 && op === "sub") return `${calmPrefix}「のこり」は引(ひ)き算(ざん)だよ。どっち？`;
+      return `${calmPrefix}「ぜんぶ」か「のこり」の言葉(ことば)に注目(ちゅうもく)してみよう。どっち？`;
     }
     if (state.step === 2) {
-      if (state.hintLevel === 0) return `${prefix}問題(もんだい)に出(で)てくる数(かず)は何(なん)と何(なに)かな？`;
-      if (state.hintLevel === 1 && numbers.length >= 2) return `${prefix}${numbers[0]}と${numbers[1]}が出(で)てくるよ。言(い)える？`;
-      return `${prefix}使(つか)う数(かず)を2つ言(い)ってみよう。`;
+      if (state.hintLevel === 0) return `${calmPrefix}問題(もんだい)に出(で)てくる数(かず)は何(なん)と何(なに)かな？`;
+      if (state.hintLevel === 1 && numbers.length >= 2) return `${calmPrefix}${numbers[0]}と${numbers[1]}が出(で)てくるよ。言(い)える？`;
+      return `${calmPrefix}使(つか)う数(かず)を2つ言(い)ってみよう。`;
     }
     if (state.step === 3) {
-      if (state.hintLevel === 0) return `${prefix}その2つで、ぜんぶ何(なん)になるかな？`;
-      if (state.hintLevel === 1 && op === "add") return `${prefix}たし算(ざん)で計算(けいさん)してみよう。いくつ？`;
-      if (state.hintLevel === 1 && op === "sub") return `${prefix}ひき算(ざん)で計算(けいさん)してみよう。いくつ？`;
-      return `${prefix}数(かず)を合わせるといくつ？`;
+      if (state.hintLevel === 0) return `${calmPrefix}その2つで、ぜんぶ何(なん)になるかな？`;
+      if (state.hintLevel === 1 && op === "add") return `${calmPrefix}たし算(ざん)で計算(けいさん)してみよう。いくつ？`;
+      if (state.hintLevel === 1 && op === "sub") return `${calmPrefix}ひき算(ざん)で計算(けいさん)してみよう。いくつ？`;
+      return `${calmPrefix}数(かず)を合わせるといくつ？`;
     }
-    return `${prefix}どうしてそう思(おも)ったのか、教(おし)えてくれる？`;
+    return `${calmPrefix}どうしてそう思(おも)ったのか、教(おし)えてくれる？`;
   }
 
 };
@@ -463,11 +467,11 @@ const isUnsafePhrasing = (text = "") => {
   return false;
 };
 
-const buildStylePrompt = ({ lang, coreQuestion, empathyLine, tone }) => {
+const buildStylePrompt = ({ lang, coreQuestion, empathyLine, tone, isCorrect }) => {
   if (lang === "English") {
-    return `Rewrite the message to be gentle, warm, and child-friendly. Keep the meaning.\n- End with a question mark.\n- Do NOT add equations or final answers.\n- Keep it short (<= 120 chars).\n- If an empathy line is provided, include it at the start.\n\nEmpathy: ${empathyLine || ""}\nCore: ${coreQuestion}\nTone: ${tone}\n\nOutput only the rewritten message.`;
+    return `Rewrite the message to be calm, warm, and child-friendly. Keep the meaning.\n- End with a question mark.\n- Do NOT add equations or final answers.\n- Keep it short (<= 120 chars).\n- Avoid exclamation marks; if used, max 1.\n- If an empathy line is provided, include it at the start.\n- Avoid over-praising. If the child seems wrong, add a gentle nudge like "Let's try again".\n\nEmpathy: ${empathyLine || ""}\nCore: ${coreQuestion}\nTone: ${tone}\nCorrect: ${isCorrect ? "yes" : "no"}\n\nOutput only the rewritten message.`;
   }
-  return `次の文を、子(こ)ども向(む)けにやさしく、少(すこ)し自由(じゆう)に言(い)い換(か)えてください。\n- 意味(いみ)は変(か)えない。\n- 文末(ぶんまつ)は必(かなら)ず「？」で終(お)える。\n- 計算式(けいさんしき)や答(こた)えは書(か)かない。\n- 短(みじか)め（120字以内）。\n- 共感文(きょうかんぶん)があれば先頭(せんとう)に入(い)れる。\n\n共感: ${empathyLine || ""}\n核(かく): ${coreQuestion}\nトーン: ${tone}\n\n言(い)い換(か)え文だけを書(か)いてください。`;
+  return `次の文を、落(お)ち着(つ)いた家庭(かてい)教師(きょうし)のトーンで、やさしく言(い)い換(か)えてください。\n- 意味(いみ)は変(か)えない。\n- 文末(ぶんまつ)は必(かなら)ず「？」で終(お)える。\n- 計算式(けいさんしき)や答(こた)えは書(か)かない。\n- 短(みじか)め（120字以内）。\n- 感嘆符(かんたんふ)は避(さ)ける（使(つか)うなら1回まで）。\n- 「わぁ」「すごいね！」など過剰(かじょう)な表現は使(つか)わない。\n- 共感文(きょうかんぶん)があれば先頭(せんとう)に入(い)れる。\n- まちがいの場合(ばあい)は「もう一度(いちど)考(かんが)えてみよう」など静(しず)かな促(うなが)しを入(い)れる。\n\n共感: ${empathyLine || ""}\n核(かく): ${coreQuestion}\nトーン: ${tone}\n正解(せいかい): ${isCorrect ? "はい" : "いいえ"}\n\n言(い)い換(か)え文だけを書(か)いてください。`;
 };
 
 const evaluateStep = ({ state, problemText, message }) => {
@@ -509,15 +513,22 @@ const evaluateStep = ({ state, problemText, message }) => {
   return { success: false, mistakeType: "unknown" };
 };
 
-const updateLearningState = (state, result) => {
+const updateLearningState = (state, result, problemText) => {
   const next = { ...state };
   if (result.success) {
     next.consecutiveSuccess += 1;
     next.consecutiveFailure = 0;
     next.retryCount = 0;
     next.hintLevel = 0;
-    if (next.step < 4) {
+    next.mistakeType = "unknown";
+    if (next.step < 3) {
       next.step += 1;
+    } else if (next.step === 3) {
+      if (next.shouldAskReason) {
+        next.step = 4;
+      } else {
+        next.completed = true;
+      }
     } else {
       next.completed = true;
     }
@@ -532,12 +543,24 @@ const updateLearningState = (state, result) => {
     }
   }
 
+  const numCount = extractNumbers(problemText).length;
+  next.shouldAskReason =
+    next.consecutiveFailure >= 2 ||
+    next.hintLevel >= 1 ||
+    next.mistakeType !== "unknown" ||
+    numCount > 2;
+
   if (next.consecutiveFailure >= 2) {
     next.tone = "supportive";
   } else if (next.consecutiveSuccess >= 2) {
     next.tone = "energetic";
   } else {
     next.tone = "neutral";
+  }
+
+  // Praise frequency: roughly 50% on correct answers
+  if (result.success) {
+    next.praiseToggle = !next.praiseToggle;
   }
 
   return next;
@@ -560,7 +583,7 @@ app.post("/chat", async (req, res) => {
       : getInitialLearningState();
 
     const result = evaluateStep({ state, problemText, message });
-    const nextState = updateLearningState(state, result);
+    const nextState = updateLearningState(state, result, problemText);
     const coreQuestion = buildQuestion({ lang, state: nextState, problemText, message });
     const empathyLine = isEmotionalMessage(message) ? buildEmpathyLine(lang) : "";
     const stylePrompt = buildStylePrompt({
@@ -568,6 +591,7 @@ app.post("/chat", async (req, res) => {
       coreQuestion,
       empathyLine,
       tone: nextState.tone,
+      isCorrect: result.success,
     });
 
     let text = coreQuestion;
@@ -601,6 +625,12 @@ app.post("/chat", async (req, res) => {
       console.error("Gemini Style Error:", err.message);
     }
 
+    if (text.includes("わぁ")) {
+      text = text.replace(/わぁ|わあ/g, "");
+    }
+    if ((text.match(/！/g) || []).length > 1) {
+      text = text.replace(/！/g, "");
+    }
     if (isUnsafePhrasing(text)) {
       const safePrefix = empathyLine ? `${empathyLine}` : "";
       text = `${safePrefix}${coreQuestion}`.replace(/。?$/, "").trim();
