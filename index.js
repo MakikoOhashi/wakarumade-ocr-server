@@ -419,24 +419,55 @@ const buildQuestion = ({ lang, state, problemText, message }) => {
     return `${prefix}Can you explain why that answer makes sense?`;
   }
 
-  if (state.step === 1) {
-    if (state.hintLevel === 0) return `${prefix}さいごは「ぜんぶ」？それとも「のこり」？`;
-    if (state.hintLevel === 1 && op === "add") return `${prefix}「ぜんぶ」や「あわせて」は足(た)し算(ざん)だよ。どっち？`;
-    if (state.hintLevel === 1 && op === "sub") return `${prefix}「のこり」は引(ひ)き算(ざん)だよ。どっち？`;
-    return `${prefix}「ぜんぶ」か「のこり」の言葉(ことば)に注目(ちゅうもく)してみよう。どっち？`;
+  if (lang === "Japanese") {
+    if (state.step === 1) {
+      if (state.hintLevel === 0) return `${prefix}さいごは「ぜんぶ」？それとも「のこり」？`;
+      if (state.hintLevel === 1 && op === "add") return `${prefix}「ぜんぶ」や「あわせて」は足(た)し算(ざん)だよ。どっち？`;
+      if (state.hintLevel === 1 && op === "sub") return `${prefix}「のこり」は引(ひ)き算(ざん)だよ。どっち？`;
+      return `${prefix}「ぜんぶ」か「のこり」の言葉(ことば)に注目(ちゅうもく)してみよう。どっち？`;
+    }
+    if (state.step === 2) {
+      if (state.hintLevel === 0) return `${prefix}問題(もんだい)に出(で)てくる数(かず)は何(なん)と何(なに)かな？`;
+      if (state.hintLevel === 1 && numbers.length >= 2) return `${prefix}${numbers[0]}と${numbers[1]}が出(で)てくるよ。言(い)える？`;
+      return `${prefix}使(つか)う数(かず)を2つ言(い)ってみよう。`;
+    }
+    if (state.step === 3) {
+      if (state.hintLevel === 0) return `${prefix}その2つで、ぜんぶ何(なん)になるかな？`;
+      if (state.hintLevel === 1 && op === "add") return `${prefix}たし算(ざん)で計算(けいさん)してみよう。いくつ？`;
+      if (state.hintLevel === 1 && op === "sub") return `${prefix}ひき算(ざん)で計算(けいさん)してみよう。いくつ？`;
+      return `${prefix}数(かず)を合わせるといくつ？`;
+    }
+    return `${prefix}どうしてそう思(おも)ったのか、教(おし)えてくれる？`;
   }
-  if (state.step === 2) {
-    if (state.hintLevel === 0) return `${prefix}問題(もんだい)に出(で)てくる数(かず)は何(なん)と何(なに)かな？`;
-    if (state.hintLevel === 1 && numbers.length >= 2) return `${prefix}${numbers[0]}と${numbers[1]}が出(で)てくるよ。言(い)える？`;
-    return `${prefix}使(つか)う数(かず)を2つ言(い)ってみよう。`;
+
+};
+
+const isEmotionalMessage = (message) => {
+  const t = normalizeForMatch(message);
+  return /きらい|いや|むずかし|わから|できない|つかれ|こわい|おもしろくない|やだ/.test(t);
+};
+
+const buildEmpathyLine = (lang) => {
+  if (lang === "English") {
+    return "I hear you. ";
   }
-  if (state.step === 3) {
-    if (state.hintLevel === 0) return `${prefix}その2つで、ぜんぶ何(なん)になるかな？`;
-    if (state.hintLevel === 1 && op === "add") return `${prefix}たし算(ざん)で計算(けいさん)してみよう。いくつ？`;
-    if (state.hintLevel === 1 && op === "sub") return `${prefix}ひき算(ざん)で計算(けいさん)してみよう。いくつ？`;
-    return `${prefix}数(かず)を合わせるといくつ？`;
+  return "そうなんだね。";
+};
+
+const isUnsafePhrasing = (text = "") => {
+  const t = String(text);
+  if (!t.trim()) return true;
+  if (!/[？?]$/.test(t.trim())) return true;
+  if (/[=＝]/.test(t)) return true;
+  if (/答え|解答|答えは|結果/.test(t)) return true;
+  return false;
+};
+
+const buildStylePrompt = ({ lang, coreQuestion, empathyLine, tone }) => {
+  if (lang === "English") {
+    return `Rewrite the message to be gentle, warm, and child-friendly. Keep the meaning.\n- End with a question mark.\n- Do NOT add equations or final answers.\n- Keep it short (<= 120 chars).\n- If an empathy line is provided, include it at the start.\n\nEmpathy: ${empathyLine || ""}\nCore: ${coreQuestion}\nTone: ${tone}\n\nOutput only the rewritten message.`;
   }
-  return `${prefix}どうしてそう思(おも)ったのか、教(おし)えてくれる？`;
+  return `次の文を、子(こ)ども向(む)けにやさしく、少(すこ)し自由(じゆう)に言(い)い換(か)えてください。\n- 意味(いみ)は変(か)えない。\n- 文末(ぶんまつ)は必(かなら)ず「？」で終(お)える。\n- 計算式(けいさんしき)や答(こた)えは書(か)かない。\n- 短(みじか)め（120字以内）。\n- 共感文(きょうかんぶん)があれば先頭(せんとう)に入(い)れる。\n\n共感: ${empathyLine || ""}\n核(かく): ${coreQuestion}\nトーン: ${tone}\n\n言(い)い換(か)え文だけを書(か)いてください。`;
 };
 
 const evaluateStep = ({ state, problemText, message }) => {
@@ -530,7 +561,51 @@ app.post("/chat", async (req, res) => {
 
     const result = evaluateStep({ state, problemText, message });
     const nextState = updateLearningState(state, result);
-    const text = buildQuestion({ lang, state: nextState, problemText, message });
+    const coreQuestion = buildQuestion({ lang, state: nextState, problemText, message });
+    const empathyLine = isEmotionalMessage(message) ? buildEmpathyLine(lang) : "";
+    const stylePrompt = buildStylePrompt({
+      lang,
+      coreQuestion,
+      empathyLine,
+      tone: nextState.tone,
+    });
+
+    let text = coreQuestion;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${API_URL}/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: stylePrompt }],
+            },
+          ],
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const result = await response.json();
+        const candidate = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        if (!isUnsafePhrasing(candidate)) {
+          text = candidate.trim();
+        }
+      }
+    } catch (err) {
+      console.error("Gemini Style Error:", err.message);
+    }
+
+    if (isUnsafePhrasing(text)) {
+      const safePrefix = empathyLine ? `${empathyLine}` : "";
+      text = `${safePrefix}${coreQuestion}`.replace(/。?$/, "").trim();
+      if (!/[？?]$/.test(text)) text = `${text}？`;
+    }
 
     return res.json({ text, learningState: nextState });
   } catch (err) {
