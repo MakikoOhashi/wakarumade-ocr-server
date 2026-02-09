@@ -365,6 +365,11 @@ const detectOperationFromMessage = (message) => {
   return "unknown";
 };
 
+const hasGoalUnderstanding = (message) => {
+  const t = normalizeForMatch(message);
+  return /(なんかい|何回|なんこ|何こ|どれだけ|いくつ|一年|1年)/.test(t);
+};
+
 const extractFirstNumberFromMessage = (message) => {
   const match = String(message).match(/-?\d+(?:\.\d+)?/);
   if (!match) return null;
@@ -445,7 +450,9 @@ const buildQuestion = ({ lang, state, problemText, message }) => {
   if (lang === "Japanese") {
     if (state.step === 1) {
       if (state.hintLevel === 0) {
-        if (state.structure === "cumulative") return `${calmPrefix}「1年(ねん)」って、今(いま)までとこれから、どっちも入(はい)るかな？`;
+        if (state.structure === "cumulative") {
+          return `${calmPrefix}7回(かい)はもう行(い)った回数(かいすう)だね。2回(かい)はこれからの回数(かいすう)だね。1年(ねん)で何回(なんかい)になるかを聞(き)いているよ。この2つの回数(かいすう)はどうしたらいいかな？`;
+        }
         if (state.structure === "comparison") return `${calmPrefix}どちらが多(おお)いか、聞(き)かれているかな？`;
         if (state.structure === "change") return `${calmPrefix}ふえた？へった？どっちかな？`;
         if (state.structure === "residual") return `${calmPrefix}のこりを聞(き)かれているかな？`;
@@ -508,6 +515,7 @@ const evaluateStep = ({ state, problemText, message }) => {
 
   if (state.step === 1) {
     if (opFromMessage !== "unknown") return { success: true };
+    if (hasGoalUnderstanding(msg)) return { success: true };
     return { success: false, mistakeType: "misunderstanding" };
   }
 
