@@ -319,6 +319,10 @@ const getInitialLearningState = () => ({
   completed: false,
   praiseToggle: false,
   shouldAskReason: false,
+  structure: "unknown",
+  phase: "goal_understanding",
+  detectedBottleneck: "unknown",
+  bottleneckConfidence: 0,
 });
 
 const extractNumbers = (text) => {
@@ -340,6 +344,15 @@ const detectOperation = (text) => {
   const subKeywords = ["のこり", "残り", "ひく", "引き", "引く", "差", "difference", "minus", "subtract"];
   if (addKeywords.some((k) => t.includes(k))) return "add";
   if (subKeywords.some((k) => t.includes(k))) return "sub";
+  return "unknown";
+};
+
+const detectStructure = (text) => {
+  const t = String(text);
+  if (/すでに|もう|これまで|今まで|あと|これから/.test(t)) return "cumulative";
+  if (/どちら|くらべ|比(べ|較)|差|ちがい/.test(t)) return "comparison";
+  if (/ふえた|へった|増(え|える)|減(っ|る)/.test(t)) return "change";
+  if (/のこり|残り/.test(t)) return "residual";
   return "unknown";
 };
 
@@ -404,10 +417,16 @@ const buildQuestion = ({ lang, state, problemText, message }) => {
 
   if (lang === "English") {
     if (state.step === 1) {
-      if (state.hintLevel === 0) return `${calmPrefix}Is this a "total" or "remaining" question?`;
-      if (state.hintLevel === 1 && op === "add") return `${calmPrefix}Words like "total" often mean addition. Which is it?`;
-      if (state.hintLevel === 1 && op === "sub") return `${calmPrefix}Words like "remaining" often mean subtraction. Which is it?`;
-      return `${calmPrefix}Look for words like "total" or "remaining". Which fits?`;
+      if (state.hintLevel === 0) {
+        if (state.structure === "cumulative") return `${calmPrefix}Does "this year" include both before and after now?`;
+        if (state.structure === "comparison") return `${calmPrefix}Is it asking which is bigger or smaller?`;
+        if (state.structure === "change") return `${calmPrefix}Is it asking how it changed?`;
+        if (state.structure === "residual") return `${calmPrefix}Is it asking what's left?`;
+        return `${calmPrefix}What is the question asking you to find?`;
+      }
+      if (state.hintLevel === 1 && op === "add") return `${calmPrefix}Words like "total" often mean combining. What is it asking?`;
+      if (state.hintLevel === 1 && op === "sub") return `${calmPrefix}Words like "remaining" often mean what's left. What is it asking?`;
+      return `${calmPrefix}Look at the last sentence. What do we need to find?`;
     }
     if (state.step === 2) {
       if (state.hintLevel === 0) return `${calmPrefix}What numbers appear in the problem?`;
@@ -425,10 +444,16 @@ const buildQuestion = ({ lang, state, problemText, message }) => {
 
   if (lang === "Japanese") {
     if (state.step === 1) {
-      if (state.hintLevel === 0) return `${calmPrefix}さいごは「ぜんぶ」？それとも「のこり」？`;
-      if (state.hintLevel === 1 && op === "add") return `${calmPrefix}「ぜんぶ」や「あわせて」は足(た)し算(ざん)だよ。どっち？`;
-      if (state.hintLevel === 1 && op === "sub") return `${calmPrefix}「のこり」は引(ひ)き算(ざん)だよ。どっち？`;
-      return `${calmPrefix}「ぜんぶ」か「のこり」の言葉(ことば)に注目(ちゅうもく)してみよう。どっち？`;
+      if (state.hintLevel === 0) {
+        if (state.structure === "cumulative") return `${calmPrefix}「1年(ねん)」って、今(いま)までとこれから、どっちも入(はい)るかな？`;
+        if (state.structure === "comparison") return `${calmPrefix}どちらが多(おお)いか、聞(き)かれているかな？`;
+        if (state.structure === "change") return `${calmPrefix}ふえた？へった？どっちかな？`;
+        if (state.structure === "residual") return `${calmPrefix}のこりを聞(き)かれているかな？`;
+        return `${calmPrefix}さいごは、何(なに)を聞(き)かれているかな？`;
+      }
+      if (state.hintLevel === 1 && op === "add") return `${calmPrefix}さいごの文(ぶん)は、ぜんぶの数(かず)を聞(き)いているよ。何(なに)を求(もと)める？`;
+      if (state.hintLevel === 1 && op === "sub") return `${calmPrefix}さいごの文(ぶん)は、のこりを聞(き)いているよ。何(なに)を求(もと)める？`;
+      return `${calmPrefix}さいごの文(ぶん)を見(み)て、何(なに)を知(し)りたいのか考(かんが)えてみよう。`;
     }
     if (state.step === 2) {
       if (state.hintLevel === 0) return `${calmPrefix}問題(もんだい)に出(で)てくる数(かず)は何(なん)と何(なに)かな？`;
@@ -467,11 +492,11 @@ const isUnsafePhrasing = (text = "") => {
   return false;
 };
 
-const buildStylePrompt = ({ lang, coreQuestion, empathyLine, tone, isCorrect }) => {
+const buildStylePrompt = ({ lang, coreQuestion, empathyLine, tone, isCorrect, structure, phase, detectedBottleneck }) => {
   if (lang === "English") {
-    return `Rewrite the message to be calm, warm, and child-friendly. Keep the meaning.\n- End with a question mark.\n- Do NOT add equations or final answers.\n- Keep it short (<= 120 chars).\n- Avoid exclamation marks; if used, max 1.\n- If an empathy line is provided, include it at the start.\n- Avoid over-praising. If the child seems wrong, add a gentle nudge like "Let's try again".\n\nEmpathy: ${empathyLine || ""}\nCore: ${coreQuestion}\nTone: ${tone}\nCorrect: ${isCorrect ? "yes" : "no"}\n\nOutput only the rewritten message.`;
+    return `Rewrite the message to be calm, warm, and child-friendly. Keep the meaning.\n- End with a question mark.\n- Do NOT add equations or final answers.\n- Keep it short (<= 120 chars).\n- Avoid exclamation marks; if used, max 1.\n- If an empathy line is provided, include it at the start.\n- Avoid over-praising. If the child seems wrong, add a gentle nudge like "Let's try again".\n\nEmpathy: ${empathyLine || ""}\nCore: ${coreQuestion}\nTone: ${tone}\nCorrect: ${isCorrect ? "yes" : "no"}\nStructure: ${structure}\nPhase: ${phase}\nBottleneck: ${detectedBottleneck}\n\nOutput only the rewritten message.`;
   }
-  return `次の文を、落(お)ち着(つ)いた家庭(かてい)教師(きょうし)のトーンで、やさしく言(い)い換(か)えてください。\n- 意味(いみ)は変(か)えない。\n- 文末(ぶんまつ)は必(かなら)ず「？」で終(お)える。\n- 計算式(けいさんしき)や答(こた)えは書(か)かない。\n- 短(みじか)め（120字以内）。\n- 感嘆符(かんたんふ)は避(さ)ける（使(つか)うなら1回まで）。\n- 「わぁ」「すごいね！」など過剰(かじょう)な表現は使(つか)わない。\n- 共感文(きょうかんぶん)があれば先頭(せんとう)に入(い)れる。\n- まちがいの場合(ばあい)は「もう一度(いちど)考(かんが)えてみよう」など静(しず)かな促(うなが)しを入(い)れる。\n\n共感: ${empathyLine || ""}\n核(かく): ${coreQuestion}\nトーン: ${tone}\n正解(せいかい): ${isCorrect ? "はい" : "いいえ"}\n\n言(い)い換(か)え文だけを書(か)いてください。`;
+  return `次の文を、落(お)ち着(つ)いた家庭(かてい)教師(きょうし)のトーンで、やさしく言(い)い換(か)えてください。\n- 意味(いみ)は変(か)えない。\n- 文末(ぶんまつ)は必(かなら)ず「？」で終(お)える。\n- 計算式(けいさんしき)や答(こた)えは書(か)かない。\n- 短(みじか)め（120字以内）。\n- 感嘆符(かんたんふ)は避(さ)ける（使(つか)うなら1回まで）。\n- 「わぁ」「すごいね！」など過剰(かじょう)な表現は使(つか)わない。\n- 共感文(きょうかんぶん)があれば先頭(せんとう)に入(い)れる。\n- 正解(せいかい)なら「そうだね」「その通(とお)り」など静(しず)かな一言(ひとこと)だけ。\n- まちがいの場合(ばあい)は「もう一度(いちど)考(かんが)えてみよう」など静(しず)かな促(うなが)しを入(い)れる。\n\n共感: ${empathyLine || ""}\n核(かく): ${coreQuestion}\nトーン: ${tone}\n正解(せいかい): ${isCorrect ? "はい" : "いいえ"}\n構造(こうぞう): ${structure}\n段階(だんかい): ${phase}\nボトルネック: ${detectedBottleneck}\n\n言(い)い換(か)え文だけを書(か)いてください。`;
 };
 
 const evaluateStep = ({ state, problemText, message }) => {
@@ -515,6 +540,14 @@ const evaluateStep = ({ state, problemText, message }) => {
 
 const updateLearningState = (state, result, problemText) => {
   const next = { ...state };
+  const structure = state.structure || detectStructure(problemText);
+  next.structure = structure;
+  next.phase =
+    next.step === 1 ? "goal_understanding" :
+    next.step === 2 ? "number_extraction" :
+    next.step === 3 ? "computation" :
+    "reasoning";
+
   if (result.success) {
     next.consecutiveSuccess += 1;
     next.consecutiveFailure = 0;
@@ -549,6 +582,21 @@ const updateLearningState = (state, result, problemText) => {
     next.hintLevel >= 1 ||
     next.mistakeType !== "unknown" ||
     numCount > 2;
+
+  if (!result.success) {
+    const map = {
+      goal_understanding: "goal_understanding",
+      number_extraction: "number_extraction",
+      computation: "computation",
+      reasoning: "reasoning",
+    };
+    const detected = map[next.phase] || "unknown";
+    next.detectedBottleneck = detected;
+    next.bottleneckConfidence = Math.min(0.9, (next.bottleneckConfidence || 0) + 0.2);
+  } else {
+    next.bottleneckConfidence = Math.max(0, (next.bottleneckConfidence || 0) - 0.1);
+    if (next.bottleneckConfidence === 0) next.detectedBottleneck = "unknown";
+  }
 
   if (next.consecutiveFailure >= 2) {
     next.tone = "supportive";
@@ -592,6 +640,9 @@ app.post("/chat", async (req, res) => {
       empathyLine,
       tone: nextState.tone,
       isCorrect: result.success,
+      structure: nextState.structure,
+      phase: nextState.phase,
+      detectedBottleneck: nextState.detectedBottleneck,
     });
 
     let text = coreQuestion;
