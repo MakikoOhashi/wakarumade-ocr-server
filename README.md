@@ -1,3 +1,7 @@
+# Archived
+
+OCR has been migrated to on-device (Apple Vision). This server-based implementation is deprecated.
+
 # Wakarumade OCR Server
 
 ## 📋 Current Status

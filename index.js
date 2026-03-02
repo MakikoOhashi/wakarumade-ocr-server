@@ -624,7 +624,7 @@ const updateLearningState = (state, result, problemText) => {
 
 app.post("/chat", async (req, res) => {
   try {
-    const { problem, message, language, learningState } = req.body || {};
+    const { problem, message, language, learningState, mode } = req.body || {};
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "message is required" });
     }
@@ -634,9 +634,51 @@ app.post("/chat", async (req, res) => {
       (typeof problem === "string" ? problem : "");
 
     const lang = language === "en" ? "English" : "Japanese";
+    const isFreeMode = mode === "free";
     const state = learningState && typeof learningState === "object"
       ? { ...getInitialLearningState(), ...learningState }
       : getInitialLearningState();
+
+    if (isFreeMode) {
+      const freePrompt =
+        lang === "English"
+          ? `You are a calm, supportive math tutor for young kids.\nRules:\n- Keep it short.\n- Always end with a question.\n- Do NOT give the final answer or equations.\n- If the child goes off-topic, acknowledge once and return to the problem.\nProblem: ${problemText}\nChild: ${message}\n\nRespond with one gentle question.`
+          : `あなたは落(お)ち着(つ)いた算数(さんすう)の家庭(かてい)教師(きょうし)です。\nルール:\n- 短(みじか)く。\n- 文末(ぶんまつ)は必(かなら)ず「？」。\n- 答(こた)えや計算式(けいさんしき)は言(い)わない。\n- 脱線(だっせん)したら一度(いちど)受(う)け止(と)めて戻(もど)す。\n問題: ${problemText}\n子(こ)ども: ${message}\n\nやさしい質問(しつもん)を1つだけ返(かえ)してください。`;
+
+      let text = "もう一度考えてみよう。";
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const response = await fetch(`${API_URL}/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: freePrompt }],
+              },
+            ],
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const result = await response.json();
+          const candidate = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          if (!isUnsafePhrasing(candidate)) {
+            text = candidate.trim();
+          }
+        }
+      } catch (err) {
+        console.error("Gemini Free Error:", err.message);
+      }
+
+      if (!/[？?]$/.test(text)) text = `${text.replace(/。$/, "")}？`;
+      return res.json({ text, learningState: state });
+    }
 
     const result = evaluateStep({ state, problemText, message });
     const nextState = updateLearningState(state, result, problemText);
